@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>北京租房 / 买房地图</title>
+
+  <!-- 高德地图安全密钥（2.0 版本要求） -->
+  <script>
+    window._AMapSecurityConfig = {
+      securityJsCode: "caf9956b9db00999b281f17c0339e1a2"
+    };
+  </script>
+  <!-- 高德地图 JS API -->
+  <script src="https://webapi.amap.com/maps?v=2.0&key=1af01d7dc6ef58c3d0001575fcc07fc7&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { display: flex; background: #f3f4f6; overflow: hidden; }
+
+    /* ========== 侧边栏 ========== */
+    #sidebar {
+      width: 360px;
+      height: 100vh;
+      background: #fff;
+      border-right: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 12px rgba(0,0,0,.04);
+      z-index: 10;
+    }
+    #sidebar header {
+      padding: 18px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+      color: #fff;
+    }
+    #sidebar header h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    #sidebar header .sub { font-size: 12px; opacity: .85; }
+
+    .toolbar {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #f0f0f0;
+      background: #fafbfc;
+    }
+    .btn {
+      padding: 7px 12px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all .15s;
+      color: #374151;
+    }
+    .btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+    .btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .btn.primary:hover { background: #1d4ed8; }
+    .btn.danger:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+    /* 模式切换 Tab */
+    .mode-tabs {
+      display: flex;
+      background: #f3f4f6;
+      padding: 4px;
+      margin: 12px 16px 0;
+      border-radius: 8px;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 7px 0;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #6b7280;
+      transition: all .15s;
+      font-weight: 500;
+    }
+    .mode-tab.active {
+      background: #fff;
+      color: #1f2937;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .mode-tab[data-mode="buy"].active { color: #16a34a; }
+    .mode-tab[data-mode="rent"].active { color: #2563eb; }
+
+    .filter-row {
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid #f0f0f0;
+      align-items: center;
+    }
+    .filter-row input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .filter-row input:focus { outline: none; border-color: #2563eb; }
+
+    #count-bar {
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #6b7280;
+      background: #fafbfc;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    #count-bar strong { color: #2563eb; }
+
+    #list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,.1); }
+    .card .title { font-weight: 600; font-size: 14px; color: #1f2937; margin-bottom: 4px; }
+    .card .price { color: #ef4444; font-size: 16px; font-weight: 700; }
+    .card .price small { font-size: 11px; color: #6b7280; font-weight: normal; }
+    .card .meta { font-size: 12px; color: #6b7280; margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .card .meta span { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+    .card .addr { font-size: 11px; color: #9ca3af; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .empty { text-align: center; padding: 40px 20px; color: #9ca3af; font-size: 13px; }
+
+    /* ========== 地图 ========== */
+    #map {
+      flex: 1;
+      height: 100vh;
+      position: relative;
+    }
+
+    #tip {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(31,41,55,.92);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      z-index: 5;
+      pointer-events: none;
+      transition: opacity .3s;
+    }
+
+    /* ========== 地图搜索框 ========== */
+    #map-search {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 360px;
+      max-width: calc(100% - 32px);
+      z-index: 6;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      overflow: hidden;
+    }
+    #map-search .input-wrap {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 44px;
+      gap: 8px;
+    }
+    #map-search .icon-search {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      opacity: .55;
+    }
+    #map-search input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      background: transparent;
+      color: #1f2937;
+      height: 100%;
+    }
+    #map-search input::placeholder { color: #9ca3af; }
+    #map-search .clear-btn {
+      cursor: pointer;
+      color: #9ca3af;
+      font-size: 18px;
+      padding: 4px 6px;
+      line-height: 1;
+      border-radius: 50%;
+      display: none;
+    }
+    #map-search .clear-btn:hover { background: #f3f4f6; color: #374151; }
+    #map-search.has-text .clear-btn { display: block; }
+
+    #search-results {
+      max-height: 360px;
+      overflow-y: auto;
+      border-top: 1px solid #f0f0f0;
+      display: none;
+    }
+    #search-results.show { display: block; }
+    .sr-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #f5f5f5;
+      transition: background .12s;
+    }
+    .sr-item:last-child { border-bottom: none; }
+    .sr-item:hover, .sr-item.active { background: #eff6ff; }
+    .sr-item .sr-name {
+      font-size: 14px;
+      color: #1f2937;
+      font-weight: 500;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sr-item .sr-name b { color: #2563eb; font-weight: 600; }
+    .sr-item .sr-addr {
+      font-size: 12px;
+      color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sr-item .sr-district {
+      display: inline-block;
+      font-size: 11px;
+      color: #2563eb;
+      background: #eff6ff;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .sr-empty {
+      padding: 16px;
+      text-align: center;
+      color: #9ca3af;
+      font-size: 13px;
+    }
+    .sr-loading {
+      padding: 12px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    /* 搜索结果临时标记的气泡 */
+    .search-pin-popup {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      min-width: 200px;
+      max-width: 260px;
+    }
+    .search-pin-popup .pp-name { font-weight: 600; font-size: 14px; color: #1f2937; margin-bottom: 4px; }
+    .search-pin-popup .pp-addr { font-size: 12px; color: #6b7280; margin-bottom: 8px; line-height: 1.4; }
+    .search-pin-popup .pp-actions { display: flex; gap: 6px; }
+    .search-pin-popup .pp-actions .btn { flex: 1; font-size: 12px; padding: 6px 8px; }
+
+    /* ========== 模态弹窗 ========== */
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      background: #fff;
+      width: 480px;
+      max-height: 90vh;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .modal h2 {
+      padding: 16px 20px;
+      font-size: 16px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal h2 .close { cursor: pointer; color: #9ca3af; font-size: 22px; line-height: 1; }
+    .modal h2 .close:hover { color: #374151; }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .form-row { margin-bottom: 14px; }
+    .form-row label {
+      display: block;
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .form-row input, .form-row textarea, .form-row select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .form-row input:focus, .form-row textarea:focus, .form-row select:focus {
+      outline: none; border-color: #2563eb;
+    }
+    .form-row textarea { resize: vertical; min-height: 60px; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .img-uploader {
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      color: #6b7280;
+      font-size: 13px;
+      transition: all .15s;
+    }
+    .img-uploader:hover { border-color: #2563eb; color: #2563eb; }
+    .img-uploader.dragover {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #2563eb;
+    }
+    .img-uploader .hint {
+      display: block;
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+    .img-preview {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .img-preview .img-item {
+      position: relative;
+      width: 70px;
+      height: 70px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    .img-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .img-preview .img-item video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+    .img-preview .img-item .vbadge {
+      position: absolute;
+      bottom: 2px; left: 2px;
+      background: rgba(0,0,0,.65);
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      pointer-events: none;
+    }
+    .img-preview .del {
+      position: absolute;
+      top: 2px; right: 2px;
+      width: 18px; height: 18px;
+      background: rgba(0,0,0,.6);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      background: #fafbfc;
+    }
+
+    /* InfoWindow 样式 */
+    .info-card { width: 280px; max-width: 280px; }
+    .info-card .info-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; color: #1f2937; }
+    .info-card .info-price { color: #ef4444; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .info-card .info-price small { font-size: 12px; color: #6b7280; font-weight: normal; }
+    .info-card .info-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .info-card .info-meta span { background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #4b5563; }
+    .info-card .info-addr { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
+    .info-card .info-desc { font-size: 13px; color: #374151; margin-bottom: 8px; line-height: 1.5; max-height: 80px; overflow-y: auto; }
+    .info-card .info-contact { font-size: 12px; color: #2563eb; margin-bottom: 8px; }
+    .info-card .info-imgs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 8px; }
+    .info-card .info-imgs img { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+    .info-card .info-videos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .info-card .info-videos video { width: 100%; max-height: 180px; background: #000; border-radius: 6px; }
+    .info-card .info-videos a { font-size: 12px; color: #2563eb; word-break: break-all; }
+    .info-card .info-actions { display: flex; gap: 6px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
+    .info-card .info-actions .btn { flex: 1; font-size: 12px; padding: 5px 8px; }
+
+    /* 大图预览 */
+    .lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.85);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .lightbox.show { display: flex; }
+    .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+
+    /* ========== 抽屉切换按钮（仅手机显示） ========== */
+    #drawer-toggle {
+      display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 7;
+      width: 44px; height: 44px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 20px;
+      border: none;
+    }
+
+    /* ========== 手机响应式 ========== */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      #sidebar {
+        position: fixed;
+        top: 0; left: 0;
+        width: 88vw;
+        max-width: 360px;
+        height: 100vh;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform .25s ease-out;
+      }
+      #sidebar.open { transform: translateX(0); }
+      #sidebar::after {
+        content: "";
+        position: fixed;
+        inset: 0 0 0 88vw;
+        background: rgba(0,0,0,.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .25s;
+      }
+      #sidebar.open::after { opacity: 1; pointer-events: auto; }
+
+      #map { width: 100vw; height: 100vh; }
+      #drawer-toggle { display: flex; }
+
+      /* 地图搜索框给抽屉按钮让位 */
+      #map-search { width: calc(100% - 80px); top: 16px; left: 16px; }
+
+      /* 弹窗占满屏 */
+      .modal { width: 95vw; max-height: 92vh; border-radius: 8px; }
+      .modal-body { padding: 14px; }
+      .toolbar { gap: 6px; padding: 10px 12px; }
+      .btn { font-size: 12px; padding: 6px 10px; }
+
+      /* InfoWindow 内的视频别太大 */
+      .info-card { width: 76vw; max-width: 320px; }
+    }
+  </style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <header>
+    <h1 id="app-title">🏠 北京租房地图</h1>
+    <div class="sub" id="app-sub">点击地图任意位置添加房源</div>
+  </header>
+
+  <div class="mode-tabs">
+    <div class="mode-tab active" data-mode="rent">🏠 租房</div>
+    <div class="mode-tab" data-mode="buy">🏡 买房</div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="btn-add">＋ 在地图上添加</button>
+    <button class="btn" id="btn-export">导出 JSON</button>
+    <button class="btn" id="btn-import">导入 JSON</button>
+    <button class="btn danger" id="btn-clear">清空全部</button>
+    <input type="file" id="file-import" accept="application/json" style="display:none" />
+  </div>
+
+  <div class="filter-row">
+    <input type="text" id="search" placeholder="搜索小区/地址/描述..." />
+    <input type="number" id="price-max" placeholder="最高价" style="width:80px" />
+  </div>
+
+  <div id="count-bar">共 <strong id="count">0</strong> 条房源</div>
+
+  <div id="list"></div>
+</aside>
+
+<div id="map">
+  <div id="map-search">
+    <div class="input-wrap">
+      <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" id="search-input" placeholder="搜索小区、地点、地铁站..." autocomplete="off" />
+      <span class="clear-btn" id="search-clear">×</span>
+    </div>
+    <div id="search-results"></div>
+  </div>
+  <div id="tip" style="opacity:0">点击地图任意位置添加房源</div>
+  <button id="drawer-toggle" aria-label="打开侧边栏">☰</button>
+</div>
+
+<!-- 添加/编辑表单弹窗 -->
+<div class="modal-mask" id="modal">
+  <div class="modal">
+    <h2>
+      <span id="modal-title">添加房源</span>
+      <span class="close" id="modal-close">×</span>
+    </h2>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>标题 / 小区名 *</label>
+        <input type="text" id="f-title" placeholder="例如：望京SOHO附近一居" />
+      </div>
+      <div class="row-2">
+        <div class="form-row">
+          <label id="f-price-label">月租 (元) *</label>
+          <input type="number" id="f-price" placeholder="5000" />
+        </div>
+        <div class="form-row">
+          <label>面积 (m²)</label>
+          <input type="number" id="f-area" placeholder="50" />
+        </div>
+      </div>
+      <div class="form-row" id="f-unitprice-row" style="display:none">
+        <label>单价 (元/m²)</label>
+        <input type="number" id="f-unitprice" placeholder="如 80000，可留空自动计算" />
+      </div>
+      <div class="row-2">
+        <div class="form-row">
+          <label>户型</label>
+          <select id="f-layout">
+            <option value="">请选择</option>
+            <option value="开间">开间</option>
+            <option value="一居">一居</option>
+            <option value="两居">两居</option>
+            <option value="三居">三居</option>
+            <option value="四居+">四居+</option>
+            <option value="合租">合租</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>朝向 / 楼层</label>
+          <input type="text" id="f-orient" placeholder="南向 / 12层" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>详细地址</label>
+        <input type="text" id="f-addr" placeholder="自动反查，可手动修改" />
+      </div>
+      <div class="form-row">
+        <label>描述 / 备注</label>
+        <textarea id="f-desc" placeholder="精装修、家电齐全、地铁10号线步行5分钟..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>联系方式</label>
+        <input type="text" id="f-contact" placeholder="电话 / 微信 / 中介" />
+      </div>
+      <div class="form-row">
+        <label>图片 / 视频（云端 R2 存储）</label>
+        <div class="img-uploader" id="img-uploader">
+          📷 点击上传图片或视频（支持多选）
+          <span class="hint">也可以把文件拖进来，或在弹窗内 Ctrl+V 粘贴</span>
+          <input type="file" id="f-images" accept="image/*,video/*" multiple style="display:none" />
+        </div>
+        <div class="img-preview" id="img-preview"></div>
+      </div>
+      <div class="form-row">
+        <label>视频外链（可选，直接贴 mp4 / B站 / YouTube 链接）</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="f-video-url" placeholder="https://..." style="flex:1" />
+          <button type="button" class="btn" id="add-video-url">添加</button>
+        </div>
+        <div class="hint" style="font-size:11px;color:#9ca3af;margin-top:4px">提示：单文件最大 100MB（Cloudflare 限制），更大请用外链</div>
+      </div>
+      <input type="hidden" id="f-id" />
+      <input type="hidden" id="f-lng" />
+      <input type="hidden" id="f-lat" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">取消</button>
+      <button class="btn primary" id="modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 大图预览 -->
+<div class="lightbox" id="lightbox"><img id="lightbox-img" src="" /></div>
+
+<script>
+/* ========================================================
+ *  数据层 — Cloudflare Pages Functions (D1) + Cloudinary
+ *  · 房源元数据走 /api/rentals (Cloudflare D1)
+ *  · 媒体（图片/视频）直接上传到 Cloudinary，rentals 里只存返回的 https URL
+ *
+ *  ⚠️ 部署前编辑下面 CLOUDINARY 两个值（注册 Cloudinary 后能拿到）：
+ *     1. 在 https://cloudinary.com 注册（免费，不要信用卡）
+ *     2. Dashboard 顶部能看到 Cloud Name，复制填入 cloudName
+ *     3. Settings → Upload → Add upload preset → Signing Mode 选 "Unsigned"
+ *        → 取个名字（如 bj-housing），保存后填入 uploadPreset
+ * ======================================================== */
+const CLOUDINARY = {
+  cloudName: "dypkzqyzk",       // ← 改成你的 Cloud Name
+  uploadPreset: "bj-housing",    // ← 改成你的 unsigned upload preset 名
+};
+const API_BASE = "/api";
+let currentMode = localStorage.getItem("bj_mode") || "rent";  // "rent" | "buy"
+
+const _modeCache = { rent: null, buy: null };
+
+async function loadMode(mode) {
+  if (_modeCache[mode]) return _modeCache[mode].slice();
+  const r = await fetch(`${API_BASE}/rentals?mode=${mode}`);
+  if (!r.ok) throw new Error(`加载失败 (${r.status})`);
+  const arr = await r.json();
+  _modeCache[mode] = arr;
+  return arr.slice();
+}
+function invalidateModeCache(mode) { _modeCache[mode] = null; }
+
+async function loadAll() { return await loadMode(currentMode); }
+
+async function apiUpsert(rental) {
+  const r = await fetch(`${API_BASE}/rentals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...rental, mode: currentMode }),
+  });
+  if (!r.ok) throw new Error(`保存失败 (${r.status})`);
+  invalidateModeCache(currentMode);
+  return await r.json();
+}
+
+async function apiDelete(id) {
+  const r = await fetch(`${API_BASE}/rentals/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+  invalidateModeCache(currentMode);
+}
+
+/* —— 媒体上传：浏览器直接 POST 到 Cloudinary —— */
+async function mediaUpload(blob, mimeType) {
+  if (!CLOUDINARY.cloudName || !CLOUDINARY.uploadPreset) {
+    throw new Error("尚未配置 Cloudinary（请编辑 index.html 顶部的 CLOUDINARY 常量）");
+  }
+  const fd = new FormData();
+  fd.append("file", blob);
+  fd.append("upload_preset", CLOUDINARY.uploadPreset);
+  // /auto/upload 让 Cloudinary 自动识别图片/视频/原始文件
+  const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/auto/upload`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!r.ok) {
+    let err;
+    try { err = await r.json(); } catch(_) {}
+    throw new Error((err && err.error && err.error.message) || `上传失败 (${r.status})`);
+  }
+  const j = await r.json();
+  return j.secure_url;  // 直接拿 https URL 当 ref 存
+}
+
+// 是否是"我们上传"的媒体（用于 UI 区分本地 vs 外链徽标）
+function isOurMedia(ref) {
+  return typeof ref === "string" && (
+    ref.includes("res.cloudinary.com") ||
+    ref.startsWith("r2:") ||      // 兼容老数据
+    ref.startsWith("idb:") ||
+    ref.startsWith("data:")
+  );
+}
+
+// 引用 → 真实 URL（用于 <img src> / <video src>）
+function refToURL(ref) {
+  if (!ref || typeof ref !== "string") return "";
+  if (ref.startsWith("r2:")) return `${API_BASE}/media/${encodeURIComponent(ref.slice(3))}`;  // 老数据兼容
+  // data: / http(s): / cloudinary URL —— 全部原样返回
+  return ref;
+}
+
+// 解析容器内所有 [data-ref] 元素的 src
+function resolveRefsIn(rootEl) {
+  if (!rootEl) return;
+  rootEl.querySelectorAll("[data-ref]").forEach(el => {
+    const url = refToURL(el.dataset.ref);
+    if (!url) return;
+    if (el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "SOURCE") el.src = url;
+  });
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+let rentals = [];   // 当前模式数据，applyMode 时拉取填充
+
+/* ===== 旧的 IndexedDB / localStorage 代码已删除（替换为云端 API） ===== */
+
+let map, geocoder;
+let markers = {};      // id -> AMap.Marker
+let infoWindow;
+let pendingLngLat = null;  // 添加模式下，点击地图时记录位置
+
+/* ========================================================
+ *  地图初始化
+ * ======================================================== */
+function initMap() {
+  map = new AMap.Map("map", {
+    zoom: 11,
+    center: [116.397428, 39.90923],   // 天安门
+    viewMode: "2D",
+    mapStyle: "amap://styles/normal"
+  });
+
+  geocoder = new AMap.Geocoder({ city: "北京" });
+  infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -32), closeWhenClickMap: true });
+
+  map.on("click", onMapClick);
+
+  // 初始化搜索功能
+  initSearch();
+
+  // 应用当前模式（会读对应数据 + 画 marker + 渲染列表）
+  applyMode();
+}
+
+/* ========================================================
+ *  地图搜索 — AutoComplete + PlaceSearch
+ * ======================================================== */
+let autoComplete, placeSearch, searchMarker;
+let searchDebounceTimer = null;
+let lastSearchTips = [];
+let activeIndex = -1;
+
+function initSearch() {
+  autoComplete = new AMap.AutoComplete({ city: "北京", citylimit: true });
+  placeSearch = new AMap.PlaceSearch({ city: "北京", citylimit: true, pageSize: 10 });
+
+  const input = $("search-input");
+  const wrap = $("map-search");
+  const clearBtn = $("search-clear");
+  const results = $("search-results");
+
+  input.addEventListener("input", () => {
+    const kw = input.value.trim();
+    if (kw) wrap.classList.add("has-text"); else wrap.classList.remove("has-text");
+    if (!kw) {
+      hideResults();
+      return;
+    }
+    // 防抖 300ms
+    clearTimeout(searchDebounceTimer);
+    showResults(`<div class="sr-loading">搜索中...</div>`);
+    searchDebounceTimer = setTimeout(() => doAutoComplete(kw), 300);
+  });
+
+  // Enter / 上下键
+  input.addEventListener("keydown", (e) => {
+    if (!results.classList.contains("show") || !lastSearchTips.length) {
+      if (e.key === "Enter" && input.value.trim()) {
+        // 没下拉时直接 PlaceSearch 第一条
+        doDirectSearch(input.value.trim());
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = (activeIndex + 1) % lastSearchTips.length;
+      highlightResult();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = (activeIndex - 1 + lastSearchTips.length) % lastSearchTips.length;
+      highlightResult();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = activeIndex >= 0 ? activeIndex : 0;
+      pickTip(lastSearchTips[idx]);
+    } else if (e.key === "Escape") {
+      hideResults();
+      input.blur();
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    input.value = "";
+    wrap.classList.remove("has-text");
+    hideResults();
+    clearSearchMarker();
+    input.focus();
+  });
+
+  // 失焦时延迟关闭（防止点击下拉时来不及触发）
+  input.addEventListener("blur", () => {
+    setTimeout(hideResults, 180);
+  });
+  input.addEventListener("focus", () => {
+    if (lastSearchTips.length) showResults(renderTips(lastSearchTips, input.value.trim()));
+  });
+}
+
+function doAutoComplete(kw) {
+  autoComplete.search(kw, (status, result) => {
+    if (status === "complete" && result.tips && result.tips.length) {
+      // 过滤掉没有坐标的（行政区结果）
+      const tips = result.tips.filter(t => t.location && typeof t.location.lng === "number");
+      if (!tips.length) {
+        showResults(`<div class="sr-empty">未找到匹配地点</div>`);
+        lastSearchTips = [];
+        return;
+      }
+      lastSearchTips = tips;
+      activeIndex = -1;
+      showResults(renderTips(tips, kw));
+    } else {
+      lastSearchTips = [];
+      showResults(`<div class="sr-empty">未找到匹配地点</div>`);
+    }
+  });
+}
+
+function doDirectSearch(kw) {
+  placeSearch.search(kw, (status, result) => {
+    if (status === "complete" && result.poiList && result.poiList.pois.length) {
+      const p = result.poiList.pois[0];
+      flyToAndPin({
+        name: p.name,
+        addr: p.address || (p.pname + p.cityname + p.adname),
+        district: p.adname,
+        lng: p.location.lng,
+        lat: p.location.lat
+      });
+    } else {
+      showTip("没有找到该地点", 2000);
+    }
+  });
+}
+
+function renderTips(tips, kw) {
+  return tips.map((t, i) => {
+    const name = highlightKeyword(t.name || "", kw);
+    const district = t.district || "";
+    const addr = t.address || "";
+    return `
+      <div class="sr-item" data-i="${i}">
+        <div class="sr-name">${name}</div>
+        <div class="sr-addr">
+          ${district ? `<span class="sr-district">${escapeHtml(district)}</span>` : ""}
+          ${escapeHtml(addr)}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function highlightKeyword(text, kw) {
+  if (!kw) return escapeHtml(text);
+  const safeText = escapeHtml(text);
+  const safeKw = escapeHtml(kw);
+  // 简单包裹，不区分大小写
+  const re = new RegExp(safeKw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return safeText.replace(re, m => `<b>${m}</b>`);
+}
+
+function showResults(html) {
+  const results = $("search-results");
+  results.innerHTML = html;
+  results.classList.add("show");
+  // 绑定点击
+  results.querySelectorAll(".sr-item").forEach(el => {
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // 阻止 input 失焦
+      const i = parseInt(el.dataset.i);
+      pickTip(lastSearchTips[i]);
+    });
+  });
+}
+
+function hideResults() {
+  $("search-results").classList.remove("show");
+  activeIndex = -1;
+}
+
+function highlightResult() {
+  const items = document.querySelectorAll(".sr-item");
+  items.forEach((el, i) => {
+    el.classList.toggle("active", i === activeIndex);
+    if (i === activeIndex) el.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function pickTip(tip) {
+  if (!tip || !tip.location) return;
+  const lng = typeof tip.location.lng === "number" ? tip.location.lng : tip.location.getLng();
+  const lat = typeof tip.location.lat === "number" ? tip.location.lat : tip.location.getLat();
+  flyToAndPin({
+    name: tip.name,
+    addr: tip.address || tip.district || "",
+    district: tip.district || "",
+    lng, lat
+  });
+  $("search-input").value = tip.name;
+  $("map-search").classList.add("has-text");
+  hideResults();
+  $("search-input").blur();
+}
+
+function flyToAndPin(loc) {
+  clearSearchMarker();
+  // 蓝色搜索图标，跟房源红标记区分
+  searchMarker = new AMap.Marker({
+    position: [loc.lng, loc.lat],
+    icon: new AMap.Icon({
+      size: new AMap.Size(28, 38),
+      image: "https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png",
+      imageSize: new AMap.Size(28, 38)
+    }),
+    offset: new AMap.Pixel(-14, -38),
+    zIndex: 200
+  });
+  searchMarker.setMap(map);
+  map.setZoomAndCenter(16, [loc.lng, loc.lat]);
+
+  // 弹气泡
+  const html = `
+    <div class="search-pin-popup">
+      <div class="pp-name">${escapeHtml(loc.name)}</div>
+      <div class="pp-addr">📍 ${escapeHtml(loc.addr || "")}</div>
+      <div class="pp-actions">
+        <button class="btn primary" onclick="addRentalAtSearchPin()">＋ 在此添加房源</button>
+        <button class="btn" onclick="clearSearchMarker()">取消</button>
+      </div>
+    </div>
+  `;
+  // 用一个独立 InfoWindow 避免和房源 infoWindow 冲突
+  if (!window.searchInfoWindow) {
+    window.searchInfoWindow = new AMap.InfoWindow({
+      offset: new AMap.Pixel(0, -38),
+      closeWhenClickMap: true,
+      isCustom: false
+    });
+  }
+  window.searchInfoWindow.setContent(html);
+  window.searchInfoWindow.open(map, [loc.lng, loc.lat]);
+  // 记下信息供"添加房源"用
+  window._searchPinData = loc;
+}
+
+window.clearSearchMarker = function() {
+  if (searchMarker) {
+    searchMarker.setMap(null);
+    searchMarker = null;
+  }
+  if (window.searchInfoWindow) window.searchInfoWindow.close();
+  window._searchPinData = null;
+};
+
+window.addRentalAtSearchPin = function() {
+  const loc = window._searchPinData;
+  if (!loc) return;
+  if (window.searchInfoWindow) window.searchInfoWindow.close();
+  // 用搜索结果的位置和名称预填表单
+  openModal(null, {
+    lng: loc.lng,
+    lat: loc.lat,
+    addr: loc.addr || ""
+  });
+  // 顺手把名称塞到标题里
+  if (!$("f-title").value) $("f-title").value = loc.name || "";
+};
+
+function onMapClick(e) {
+  const lng = e.lnglat.getLng();
+  const lat = e.lnglat.getLat();
+  pendingLngLat = { lng, lat };
+  // 反查地址
+  geocoder.getAddress([lng, lat], (status, result) => {
+    let addr = "";
+    if (status === "complete" && result.regeocode) {
+      addr = result.regeocode.formattedAddress;
+    }
+    openModal(null, { lng, lat, addr });
+  });
+}
+
+/* ========================================================
+ *  Marker
+ * ======================================================== */
+// 按 title 分组（trim 后相同视为同一栋）
+function groupKeyOf(r) { return (r.title || "").trim() || r.id; }
+function getGroups() {
+  const groups = new Map();
+  rentals.forEach(r => {
+    const k = groupKeyOf(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  });
+  return groups;
+}
+
+function rebuildMarkers() {
+  Object.values(markers).forEach(m => m.setMap(null));
+  markers = {};
+  const isBuy = currentMode === "buy";
+  const bg = isBuy ? "#16a34a" : "#ef4444";
+  getGroups().forEach((arr, key) => {
+    const r = arr[0];
+    const prices = arr.map(x => x.price).filter(p => p > 0);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const priceText = isBuy
+      ? (minP === maxP ? `${minP}万` : `${minP}-${maxP}万`)
+      : (minP === maxP ? `¥${minP}` : `¥${minP}-${maxP}`);
+    const countBadge = arr.length > 1
+      ? `<span style="background:rgba(255,255,255,.28);padding:0 5px;border-radius:8px;margin-left:4px;font-size:11px">${arr.length}</span>`
+      : "";
+    const marker = new AMap.Marker({
+      position: [r.lng, r.lat],
+      title: r.title,
+      label: {
+        content: `<div style="background:${bg};color:#fff;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;box-shadow:0 2px 4px rgba(0,0,0,.2);white-space:nowrap">${priceText}${countBadge}</div>`,
+        direction: "top"
+      },
+      extData: { groupKey: key }
+    });
+    marker.on("click", () => showGroupInfo(key, 0));
+    marker.setMap(map);
+    markers[key] = marker;
+  });
+}
+
+let _infoState = null;  // { key, idx } —— InfoWindow 当前同名组分页状态
+
+function showInfo(id) {
+  const r0 = rentals.find(x => x.id === id);
+  if (!r0) return;
+  const key = groupKeyOf(r0);
+  const arr = rentals.filter(x => groupKeyOf(x) === key);
+  const idx = Math.max(0, arr.findIndex(x => x.id === id));
+  showGroupInfo(key, idx, arr);
+}
+
+function showGroupInfo(key, idx, _arr) {
+  const arr = _arr || rentals.filter(x => groupKeyOf(x) === key);
+  if (!arr.length) return;
+  idx = ((idx % arr.length) + arr.length) % arr.length;  // 支持环形翻页
+  _infoState = { key, idx };
+  const r = arr[idx];
+  const isBuy = currentMode === "buy";
+  // 在另一模式中找同名条目，合并展示（用内存缓存，没缓存则跳过；模式切换时会预热）
+  const otherMode = isBuy ? "rent" : "buy";
+  const otherArr = _modeCache[otherMode] || [];
+  const other = otherArr.find(x => (x.title || "").trim() === (r.title || "").trim());
+
+  const priceHtml = isBuy
+    ? `<div class="info-price" style="color:#16a34a">${r.price} <small>万元</small>${r.unitPrice ? ` <small style="color:#6b7280">· 单价 ${r.unitPrice} 元/m²</small>` : ""}</div>`
+    : `<div class="info-price">¥${r.price} <small>/月</small></div>`;
+
+  // 另一模式的同名信息块
+  let otherHtml = "";
+  if (other) {
+    const otherIsBuy = otherMode === "buy";
+    const otherPrice = otherIsBuy
+      ? `<span style="color:#16a34a;font-weight:600">${other.price} 万${other.unitPrice ? ` <small style="color:#6b7280;font-weight:normal">· ${other.unitPrice}元/m²</small>` : ""}</span>`
+      : `<span style="color:#ef4444;font-weight:600">¥${other.price} /月</span>`;
+    otherHtml = `
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid ${otherIsBuy ? "#16a34a" : "#ef4444"};border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12px">
+        <div style="color:#6b7280;margin-bottom:3px">同时${otherIsBuy ? "在售" : "在租"}：</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          ${otherPrice}
+          <button class="btn" style="font-size:11px;padding:3px 8px" onclick="switchToOther('${otherMode}','${other.id}')">查看 →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 同名翻页器（>1 时显示）
+  const pager = arr.length > 1 ? `
+    <div class="info-pager" style="display:flex;align-items:center;justify-content:space-between;background:#f3f4f6;border-radius:6px;padding:4px 6px;margin-bottom:8px;user-select:none">
+      <button class="btn" style="padding:2px 10px;font-size:13px;line-height:1.4" onclick="infoPrev()">‹</button>
+      <span style="font-size:12px;color:#374151;font-weight:500">同名房源 ${idx + 1} / ${arr.length}</span>
+      <button class="btn" style="padding:2px 10px;font-size:13px;line-height:1.4" onclick="infoNext()">›</button>
+    </div>
+  ` : "";
+
+  const html = `
+    <div class="info-card" id="info-card-root">
+      ${pager}
+      <div class="info-title">${escapeHtml(r.title)}${other ? ` <span style="font-size:11px;color:${isBuy ? "#ef4444" : "#16a34a"};background:${isBuy ? "#fef2f2" : "#f0fdf4"};padding:1px 6px;border-radius:4px;font-weight:normal;vertical-align:middle">${isBuy ? "也在租" : "也在售"}</span>` : ""}</div>
+      ${priceHtml}
+      ${otherHtml}
+      <div class="info-meta">
+        ${r.layout ? `<span>${escapeHtml(r.layout)}</span>` : ""}
+        ${r.area ? `<span>${r.area}m²</span>` : ""}
+        ${r.orient ? `<span>${escapeHtml(r.orient)}</span>` : ""}
+      </div>
+      ${r.addr ? `<div class="info-addr">📍 ${escapeHtml(r.addr)}</div>` : ""}
+      ${r.desc ? `<div class="info-desc">${escapeHtml(r.desc)}</div>` : ""}
+      ${r.contact ? `<div class="info-contact">📞 ${escapeHtml(r.contact)}</div>` : ""}
+      ${r.images && r.images.length ? `<div class="info-imgs">${r.images.map((src,i)=>`<img data-ref="${escapeHtml(src)}" data-img="${i}" data-id="${r.id}" />`).join("")}</div>` : ""}
+      ${r.videos && r.videos.length ? `<div class="info-videos">${r.videos.map(src => renderVideoEntry(src)).join("")}</div>` : ""}
+      <div class="info-actions">
+        <button class="btn" onclick="editRental('${r.id}')">编辑</button>
+        <button class="btn danger" onclick="delRental('${r.id}')">删除</button>
+      </div>
+    </div>
+  `;
+  infoWindow.setContent(html);
+  infoWindow.open(map, [r.lng, r.lat]);
+
+  // 绑定图片点击 + 触摸滑动翻页 + 解析 IDB 引用
+  setTimeout(() => {
+    const root = document.getElementById("info-card-root");
+    resolveRefsIn(root || document);
+    document.querySelectorAll(".info-imgs img").forEach(img => {
+      img.onclick = () => { if (img.src) showLightbox(img.src); };
+    });
+    if (arr.length > 1 && root) bindSwipe(root);
+  }, 50);
+}
+
+// 渲染 InfoWindow 中的单个视频条目（本地 base64 / 直链 mp4 / B站 / YouTube / 通用外链）
+function renderVideoEntry(src) {
+  if (!src) return "";
+  // 我们上传的媒体（Cloudinary / R2 / 旧数据）走 data-ref
+  if (isOurMedia(src)) {
+    return `<video data-ref="${escapeHtml(src)}" controls preload="metadata"></video>`;
+  }
+  // 直链 mp4 / webm 等
+  if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(src)) {
+    return `<video src="${escapeHtml(src)}" controls preload="metadata"></video>`;
+  }
+  // YouTube
+  let m = src.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/i);
+  if (m) {
+    return `<iframe src="https://www.youtube.com/embed/${m[1]}" style="width:100%;aspect-ratio:16/9;border:0;border-radius:6px" allowfullscreen></iframe>`;
+  }
+  // B站
+  m = src.match(/bilibili\.com\/video\/(BV[\w]+|av\d+)/i);
+  if (m) {
+    const id = m[1];
+    const param = id.startsWith("BV") ? `bvid=${id}` : `aid=${id.slice(2)}`;
+    return `<iframe src="//player.bilibili.com/player.html?${param}&high_quality=1" style="width:100%;aspect-ratio:16/9;border:0;border-radius:6px" scrolling="no" allowfullscreen></iframe>`;
+  }
+  // 兜底：给一个跳转链接
+  return `<a href="${escapeHtml(src)}" target="_blank" rel="noopener">▶ 打开视频链接：${escapeHtml(src)}</a>`;
+}
+
+// 切页函数（环形）
+window.infoPrev = function() {
+  if (!_infoState) return;
+  showGroupInfo(_infoState.key, _infoState.idx - 1);
+};
+window.infoNext = function() {
+  if (!_infoState) return;
+  showGroupInfo(_infoState.key, _infoState.idx + 1);
+};
+
+// 触摸滑动翻页
+function bindSwipe(el) {
+  let sx = 0, sy = 0, t = 0;
+  el.addEventListener("touchstart", e => {
+    const p = e.changedTouches[0];
+    sx = p.clientX; sy = p.clientY; t = Date.now();
+  }, { passive: true });
+  el.addEventListener("touchend", e => {
+    const p = e.changedTouches[0];
+    const dx = p.clientX - sx, dy = p.clientY - sy;
+    if (Date.now() - t > 600) return;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx < 0) window.infoNext(); else window.infoPrev();
+  }, { passive: true });
+}
+
+// 键盘左右键翻页（InfoWindow 打开且不在输入框内时）
+document.addEventListener("keydown", e => {
+  if (!_infoState) return;
+  if (modal.classList.contains("show")) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+  if (e.key === "ArrowLeft") { e.preventDefault(); window.infoPrev(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); window.infoNext(); }
+});
+
+/* ========================================================
+ *  CRUD
+ * ======================================================== */
+// 从 InfoWindow 跳到另一模式查看同名条目
+window.switchToOther = async function(mode, id) {
+  if (mode !== currentMode) {
+    currentMode = mode;
+    localStorage.setItem("bj_mode", mode);
+    await applyMode();
+  }
+  setTimeout(() => {
+    const r = rentals.find(x => x.id === id);
+    if (r) {
+      map.setZoomAndCenter(15, [r.lng, r.lat]);
+      showInfo(id);
+    }
+  }, 50);
+};
+
+window.editRental = function(id) {
+  const r = rentals.find(x => x.id === id);
+  if (r) openModal(r);
+};
+window.delRental = async function(id) {
+  if (!confirm("确认删除这条房源？")) return;
+  try {
+    await apiDelete(id);
+  } catch(e) { alert(e.message); return; }
+  rentals = rentals.filter(x => x.id !== id);
+  rebuildMarkers();
+  renderList();
+  infoWindow.close();
+  _infoState = null;
+};
+
+/* ========================================================
+ *  弹窗 / 表单
+ * ======================================================== */
+const $ = id => document.getElementById(id);
+const modal = $("modal");
+let editingImages = [];
+let editingVideos = [];   // 数组元素：data:video/...;base64,... 或外链 URL
+
+function openModal(rental, prefill) {
+  editingImages = [];
+  editingVideos = [];
+  $("img-preview").innerHTML = "";
+  $("f-video-url").value = "";
+  if (rental) {
+    $("modal-title").textContent = "编辑房源";
+    $("f-id").value = rental.id;
+    $("f-title").value = rental.title || "";
+    $("f-price").value = rental.price || "";
+    $("f-area").value = rental.area || "";
+    $("f-layout").value = rental.layout || "";
+    $("f-orient").value = rental.orient || "";
+    $("f-addr").value = rental.addr || "";
+    $("f-desc").value = rental.desc || "";
+    $("f-contact").value = rental.contact || "";
+    $("f-unitprice").value = rental.unitPrice || "";
+    $("f-lng").value = rental.lng;
+    $("f-lat").value = rental.lat;
+    editingImages = (rental.images || []).slice();
+    editingVideos = (rental.videos || []).slice();
+    renderImgPreview();
+  } else {
+    $("modal-title").textContent = currentMode === "buy" ? "添加房源（买房）" : "添加房源（租房）";
+    ["f-id","f-title","f-price","f-area","f-layout","f-orient","f-addr","f-desc","f-contact","f-unitprice"].forEach(k => $(k).value = "");
+    if (prefill) {
+      $("f-lng").value = prefill.lng;
+      $("f-lat").value = prefill.lat;
+      $("f-addr").value = prefill.addr || "";
+    }
+  }
+  modal.classList.add("show");
+}
+function closeModal() {
+  modal.classList.remove("show");
+  pendingLngLat = null;
+  // 用户取消保存时上传的孤儿媒体不再做客户端清理（云端没有"未保存"概念，
+  // 偶尔的孤儿对象 R2 容量充足，可以以后加 /api/gc 一并扫）
+}
+
+$("modal-close").onclick = closeModal;
+$("modal-cancel").onclick = closeModal;
+
+$("modal-save").onclick = async () => {
+  const title = $("f-title").value.trim();
+  const price = parseInt($("f-price").value);
+  const lng = parseFloat($("f-lng").value);
+  const lat = parseFloat($("f-lat").value);
+  if (!title) { alert("请填写标题"); return; }
+  if (!price || price <= 0) { alert(currentMode === "buy" ? "请填写有效的总价（万元）" : "请填写有效的月租"); return; }
+  if (isNaN(lng) || isNaN(lat)) { alert("缺少地图坐标，请在地图上点击位置"); return; }
+
+  const id = $("f-id").value || uid();
+  const area = parseInt($("f-area").value) || null;
+  let unitPrice = parseInt($("f-unitprice").value) || null;
+  // 买房模式下：若用户没填单价但填了总价+面积，自动算
+  if (currentMode === "buy" && !unitPrice && area && price) {
+    unitPrice = Math.round(price * 10000 / area);
+  }
+  const data = {
+    id, lng, lat,
+    title,
+    price,
+    unitPrice: currentMode === "buy" ? unitPrice : undefined,
+    area,
+    layout: $("f-layout").value,
+    orient: $("f-orient").value.trim(),
+    addr: $("f-addr").value.trim(),
+    desc: $("f-desc").value.trim(),
+    contact: $("f-contact").value.trim(),
+    images: editingImages,
+    videos: editingVideos,
+    updatedAt: new Date().toISOString()
+  };
+
+  const idx = rentals.findIndex(x => x.id === id);
+  if (idx < 0) data.createdAt = data.updatedAt;
+
+  let saved;
+  try {
+    saved = await apiUpsert(data);
+  } catch(e) {
+    alert(e.message);
+    return;
+  }
+
+  if (idx >= 0) rentals[idx] = saved;
+  else rentals.push(saved);
+
+  rebuildMarkers();
+  renderList();
+  closeModal();
+};
+
+/* ========================================================
+ *  图片上传 — 转 base64 存 localStorage
+ * ======================================================== */
+// 把一批文件上传到云端 R2；图片先压缩，视频原样上传
+async function ingestImageFiles(files) {
+  const all = Array.from(files || []).filter(f => f && (f.type.startsWith("image/") || f.type.startsWith("video/")));
+  if (!all.length) return;
+  showTip(`正在上传 ${all.length} 个文件...`, 60000);
+  for (const f of all) {
+    try {
+      const isVideo = f.type.startsWith("video/");
+      let blob, mime;
+      if (isVideo) {
+        blob = f;  // 视频不压缩
+        mime = f.type;
+      } else {
+        blob = await compressImage(f, 1600, 0.82);
+        mime = "image/jpeg";
+      }
+      const ref = await mediaUpload(blob, mime);
+      if (isVideo) editingVideos.push(ref);
+      else editingImages.push(ref);
+      renderImgPreview();
+    } catch(e) {
+      console.error("媒体上传失败", e);
+      alert(`文件 "${f.name}" 上传失败：${e.message || e}`);
+    }
+  }
+  showTip(`已上传 ${all.length} 个文件`, 1500);
+}
+
+$("img-uploader").onclick = (e) => {
+  // 避免点击删除按钮等冒泡触发
+  if (e.target.closest(".img-preview")) return;
+  $("f-images").click();
+};
+$("f-images").onchange = (e) => {
+  ingestImageFiles(e.target.files);
+  e.target.value = "";
+};
+
+/* —— 拖拽上传 —— */
+const _dropZone = $("img-uploader");
+["dragenter", "dragover"].forEach(ev => {
+  _dropZone.addEventListener(ev, e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _dropZone.classList.add("dragover");
+  });
+});
+["dragleave", "drop"].forEach(ev => {
+  _dropZone.addEventListener(ev, e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (ev === "dragleave" && _dropZone.contains(e.relatedTarget)) return;
+    _dropZone.classList.remove("dragover");
+  });
+});
+_dropZone.addEventListener("drop", e => {
+  ingestImageFiles(e.dataTransfer && e.dataTransfer.files);
+});
+// 整个 modal 也允许拖入（拖到表单别处不会触发浏览器打开图片）
+modal.addEventListener("dragover", e => { if (modal.classList.contains("show")) e.preventDefault(); });
+modal.addEventListener("drop", e => {
+  if (!modal.classList.contains("show")) return;
+  e.preventDefault();
+  ingestImageFiles(e.dataTransfer && e.dataTransfer.files);
+});
+
+/* —— 粘贴上传：弹窗打开时监听全局 paste —— */
+document.addEventListener("paste", e => {
+  if (!modal.classList.contains("show")) return;
+  // 若焦点在文本输入且剪贴板有文字，让浏览器正常粘贴文字
+  const ae = document.activeElement;
+  const isTextInput = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  const files = [];
+  for (const it of items) {
+    if (it.kind === "file" && it.type.startsWith("image/")) {
+      const f = it.getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (!files.length) return;
+  // 有图片 → 拦截默认（防止 textarea 粘上文件名等）
+  if (!isTextInput || !e.clipboardData.getData("text")) e.preventDefault();
+  ingestImageFiles(files);
+  showTip(`已粘贴 ${files.length} 张图片`, 1500);
+});
+
+// 返回 Blob（不再返回 dataURL，省 1/3 体积、且能直接进 IDB）
+function compressImage(file, maxSize, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxSize) {
+          height = height * maxSize / width; width = maxSize;
+        } else if (height > maxSize) {
+          width = width * maxSize / height; height = maxSize;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("toBlob 失败")), "image/jpeg", quality);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderImgPreview() {
+  const wrap = $("img-preview");
+  const imgHtml = editingImages.map((src, i) => `
+    <div class="img-item" data-kind="img" data-i="${i}">
+      <img data-ref="${escapeHtml(src)}" />
+      <span class="del" data-kind="img" data-i="${i}">×</span>
+    </div>
+  `).join("");
+  const vidHtml = editingVideos.map((src, i) => {
+    const isLocal = isOurMedia(src);
+    const inner = isLocal
+      ? `<video data-ref="${escapeHtml(src)}" muted preload="metadata"></video>`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1f2937;color:#fff;font-size:18px">🔗</div>`;
+    return `
+      <div class="img-item" data-kind="vid" data-i="${i}" title="${escapeHtml(isLocal ? '本地视频' : src)}">
+        ${inner}
+        <span class="vbadge">${isLocal ? "视频" : "链接"}</span>
+        <span class="del" data-kind="vid" data-i="${i}">×</span>
+      </div>
+    `;
+  }).join("");
+  wrap.innerHTML = imgHtml + vidHtml;
+  resolveRefsIn(wrap);
+  wrap.querySelectorAll(".del").forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const i = parseInt(el.dataset.i);
+      if (el.dataset.kind === "vid") editingVideos.splice(i, 1);
+      else editingImages.splice(i, 1);
+      renderImgPreview();
+    };
+  });
+}
+
+// 添加视频外链
+$("add-video-url").onclick = () => {
+  const url = $("f-video-url").value.trim();
+  if (!url) return;
+  if (!/^https?:\/\//i.test(url)) {
+    alert("请填写以 http:// 或 https:// 开头的链接");
+    return;
+  }
+  editingVideos.push(url);
+  $("f-video-url").value = "";
+  renderImgPreview();
+};
+$("f-video-url").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("add-video-url").click(); }
+});
+
+/* ========================================================
+ *  侧边栏列表
+ * ======================================================== */
+function renderList() {
+  const kw = $("search").value.trim().toLowerCase();
+  const maxPrice = parseInt($("price-max").value) || Infinity;
+  const filtered = rentals.filter(r => {
+    if (r.price > maxPrice) return false;
+    if (!kw) return true;
+    const hay = [r.title, r.addr, r.desc, r.layout, r.orient, r.contact].join(" ").toLowerCase();
+    return hay.includes(kw);
+  });
+  $("count").textContent = filtered.length;
+  const list = $("list");
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty">${rentals.length === 0 ? "还没有房源，点击地图添加第一条吧 🗺️" : "无匹配结果"}</div>`;
+    return;
+  }
+  const isBuy = currentMode === "buy";
+  // 另一模式的同名 title 集合，用于在卡片上加徽标
+  const otherTitles = new Set((_modeCache[isBuy ? "rent" : "buy"] || []).map(x => (x.title || "").trim()));
+
+  // 同名合并为一张卡：以 (filtered 列表中) 第一条出现的为代表，count 用同组在 filtered 中的总数
+  const seen = new Map();
+  const cards = [];
+  filtered.forEach(r => {
+    const k = groupKeyOf(r);
+    if (seen.has(k)) { seen.get(k).count++; return; }
+    const ent = { rep: r, key: k, count: 1 };
+    seen.set(k, ent);
+    cards.push(ent);
+  });
+  $("count").textContent = cards.length === filtered.length
+    ? cards.length
+    : `${cards.length} 组 · ${filtered.length}`;
+
+  list.innerHTML = cards.map(({ rep: r, count }) => {
+    const priceTxt = isBuy
+      ? `${r.price}<small> 万元</small>${r.unitPrice ? `<small style="margin-left:6px;color:#6b7280">${r.unitPrice}元/m²</small>` : ""}`
+      : `¥${r.price}<small> /月</small>`;
+    const groupBadge = count > 1
+      ? ` <span style="font-size:10px;color:#fff;background:${isBuy ? "#16a34a" : "#ef4444"};padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:600">×${count}</span>`
+      : "";
+    return `
+    <div class="card" data-id="${r.id}">
+      <div class="title">${escapeHtml(r.title)}${groupBadge}${otherTitles.has((r.title || "").trim()) ? ` <span style="font-size:10px;color:${isBuy ? "#ef4444" : "#16a34a"};background:${isBuy ? "#fef2f2" : "#f0fdf4"};padding:1px 5px;border-radius:3px;font-weight:normal;margin-left:4px">${isBuy ? "也在租" : "也在售"}</span>` : ""}</div>
+      <div class="price" style="${isBuy ? "color:#16a34a" : ""}">${priceTxt}${count > 1 ? `<small style="margin-left:6px;color:#9ca3af;font-weight:normal">起，共 ${count} 条</small>` : ""}</div>
+      <div class="meta">
+        ${r.layout ? `<span>${escapeHtml(r.layout)}</span>` : ""}
+        ${r.area ? `<span>${r.area}m²</span>` : ""}
+        ${r.orient ? `<span>${escapeHtml(r.orient)}</span>` : ""}
+      </div>
+      ${r.addr ? `<div class="addr">📍 ${escapeHtml(r.addr)}</div>` : ""}
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".card").forEach(card => {
+    card.onclick = () => {
+      const id = card.dataset.id;
+      const r = rentals.find(x => x.id === id);
+      if (r) {
+        map.setZoomAndCenter(15, [r.lng, r.lat]);
+        showInfo(id);
+      }
+    };
+  });
+}
+
+$("search").oninput = renderList;
+$("price-max").oninput = renderList;
+
+/* ========================================================
+ *  顶部按钮
+ * ======================================================== */
+$("btn-add").onclick = () => {
+  showTip("请在地图上点击想要标注的位置", 2500);
+};
+
+$("btn-clear").onclick = async () => {
+  if (!rentals.length) return;
+  if (!confirm(`确认清空全部 ${rentals.length} 条房源？此操作不可恢复（建议先导出备份）`)) return;
+  showTip(`正在删除 ${rentals.length} 条...`, 60000);
+  for (const r of rentals.slice()) {
+    try { await apiDelete(r.id); } catch(e) { console.warn("删除失败", r.id, e); }
+  }
+  rentals = [];
+  Object.values(markers).forEach(m => m.setMap(null));
+  markers = {};
+  renderList();
+  showTip("已清空", 1500);
+};
+
+$("btn-export").onclick = () => {
+  const blob = new Blob([JSON.stringify(rentals, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `北京租房_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+$("btn-import").onclick = () => $("file-import").click();
+$("file-import").onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    try {
+      const arr = JSON.parse(ev.target.result);
+      if (!Array.isArray(arr)) throw new Error("格式错误");
+      const replace = !confirm(`导入 ${arr.length} 条数据。\n[确定] 合并到现有数据\n[取消] 替换全部现有数据`);
+      if (replace) {
+        for (const r of rentals.slice()) await apiDelete(r.id);
+      }
+      const existing = new Set(rentals.map(x => x.id));
+      let n = 0;
+      showTip(`正在导入...`, 60000);
+      for (const r of arr) {
+        if (!replace && existing.has(r.id)) continue;
+        try { await apiUpsert(r); n++; } catch(e) { console.warn("导入失败", r.id, e); }
+      }
+      invalidateModeCache(currentMode);
+      rentals = await loadAll();
+      rebuildMarkers();
+      renderList();
+      showTip(`导入完成，新增 ${n} 条`, 2000);
+    } catch(err) {
+      alert("导入失败：" + err.message);
+    }
+  };
+  reader.readAsText(f);
+  e.target.value = "";
+};
+
+/* ========================================================
+ *  工具
+ * ======================================================== */
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function showTip(text, ms = 2000) {
+  const t = $("tip");
+  t.textContent = text;
+  t.style.opacity = 1;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.opacity = 0, ms);
+}
+
+function showLightbox(src) {
+  $("lightbox-img").src = src;
+  $("lightbox").classList.add("show");
+}
+$("lightbox").onclick = () => $("lightbox").classList.remove("show");
+
+/* ========================================================
+ *  入口：等待高德 SDK 加载
+ * ======================================================== */
+function bootstrap() {
+  if (typeof AMap === "undefined") {
+    document.getElementById("map").innerHTML = `
+      <div style="padding:40px;text-align:center;color:#ef4444;font-size:14px">
+        ⚠️ 高德地图 SDK 加载失败<br><br>
+        请在 index.html 顶部把 <code>YOUR_AMAP_KEY</code> 替换为你申请的 Web端(JS API) Key<br>
+        申请地址：<a href="https://console.amap.com/" target="_blank">https://console.amap.com/</a>
+      </div>
+    `;
+    return;
+  }
+  initMap();
+  showTip("点击地图任意位置即可添加房源 ✨", 3500);
+}
+
+window.addEventListener("load", bootstrap);
+
+/* —— 手机抽屉切换 —— */
+{
+  const sidebar = document.getElementById("sidebar");
+  const toggle = document.getElementById("drawer-toggle");
+  toggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+  // 点列表卡片或地图后自动收起（仅手机）
+  const closeIfMobile = () => {
+    if (window.innerWidth <= 768) sidebar.classList.remove("open");
+  };
+  document.getElementById("list").addEventListener("click", closeIfMobile);
+  document.getElementById("map").addEventListener("click", closeIfMobile);
+}
+
+/* ========================================================
+ *  模式切换（租房 / 买房）
+ * ======================================================== */
+async function applyMode() {
+  const isBuy = currentMode === "buy";
+  $("app-title").textContent = isBuy ? "🏡 北京买房地图" : "🏠 北京租房地图";
+  $("app-sub").textContent = isBuy ? "点击地图任意位置添加待选房源" : "点击地图任意位置添加房源";
+  $("f-price-label").textContent = isBuy ? "总价 (万元) *" : "月租 (元) *";
+  $("f-price").placeholder = isBuy ? "例如 850" : "5000";
+  $("f-unitprice-row").style.display = isBuy ? "" : "none";
+  $("price-max").placeholder = isBuy ? "最高总价(万)" : "最高价";
+  $("count").parentElement.innerHTML = `共 <strong id="count">0</strong> 条${isBuy ? "在售房源" : "房源"}`;
+  $("btn-add").textContent = isBuy ? "＋ 添加待选房源" : "＋ 在地图上添加";
+
+  document.querySelectorAll(".mode-tab").forEach(el => {
+    el.classList.toggle("active", el.dataset.mode === currentMode);
+  });
+
+  // 从云端拉取当前模式数据 + 异步预热另一模式（用于跨模式徽标）
+  showTip("加载中...", 60000);
+  try {
+    rentals = await loadAll();
+    showTip(`已加载 ${rentals.length} 条房源`, 1200);
+  } catch(e) {
+    rentals = [];
+    showTip("加载失败：" + e.message, 4000);
+  }
+  loadMode(isBuy ? "rent" : "buy").then(() => renderList()).catch(() => {});
+  rebuildMarkers();
+  renderList();
+  if (infoWindow) infoWindow.close();
+  _infoState = null;
+}
+
+document.querySelectorAll(".mode-tab").forEach(el => {
+  el.addEventListener("click", () => {
+    const m = el.dataset.mode;
+    if (m === currentMode) return;
+    currentMode = m;
+    localStorage.setItem("bj_mode", m);
+    applyMode();
+  });
+});
+
+</script>
+
+</body>
+</html>
