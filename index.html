@@ -1706,10 +1706,16 @@ window.addEventListener("load", bootstrap);
 {
   const sidebar = document.getElementById("sidebar");
   const toggle = document.getElementById("drawer-toggle");
-  toggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();           // 别让冒泡到 #map 触发 closeIfMobile
+    sidebar.classList.toggle("open");
+  });
   // 点列表卡片或地图后自动收起（仅手机）
-  const closeIfMobile = () => {
-    if (window.innerWidth <= 768) sidebar.classList.remove("open");
+  const closeIfMobile = (e) => {
+    if (window.innerWidth > 768) return;
+    // 抽屉按钮本身和侧边栏内部的点击不要触发收起
+    if (e && e.target && e.target.closest && e.target.closest("#drawer-toggle, #sidebar")) return;
+    sidebar.classList.remove("open");
   };
   document.getElementById("list").addEventListener("click", closeIfMobile);
   document.getElementById("map").addEventListener("click", closeIfMobile);
