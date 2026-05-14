@@ -127,8 +127,47 @@
       margin-bottom: 8px;
       cursor: pointer;
       transition: all .15s;
+      position: relative;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
     .card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,.1); }
+
+    /* ===== 长按抖动 + 左上角 × 删除 ===== */
+    @keyframes card-wiggle {
+      0%   { transform: rotate(-1.2deg); }
+      50%  { transform: rotate(1.2deg); }
+      100% { transform: rotate(-1.2deg); }
+    }
+    .card.wiggle {
+      animation: card-wiggle .22s ease-in-out infinite;
+      transform-origin: 50% 50%;
+      border-color: #fca5a5;
+      box-shadow: 0 4px 14px rgba(239,68,68,.18);
+    }
+    .card .del-x {
+      display: none;
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ef4444;
+      color: #fff;
+      font-size: 16px;
+      line-height: 24px;
+      text-align: center;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      z-index: 10;
+      border: 2px solid #fff;
+      animation: card-wiggle .22s ease-in-out infinite reverse; /* 与卡片反相,视觉上更"颤" */
+    }
+    .card.wiggle .del-x { display: block; }
+    .card .del-x:active { background: #dc2626; transform: scale(.92); }
     .card .title { font-weight: 600; font-size: 14px; color: #1f2937; margin-bottom: 4px; }
     .card .price { color: #ef4444; font-size: 16px; font-weight: 700; }
     .card .price small { font-size: 11px; color: #6b7280; font-weight: normal; }
@@ -1142,7 +1181,7 @@ function showGroupInfo(key, idx, _arr) {
       ${r.videos && r.videos.length ? `<div class="info-videos">${r.videos.map(src => renderVideoEntry(src)).join("")}</div>` : ""}
       <div class="info-actions">
         <button class="btn" onclick="editRental('${r.id}')">编辑</button>
-        <button class="btn danger" onclick="delRental('${r.id}')">删除</button>
+        <!-- 删除入口已移至列表卡片长按交互(避免误触) -->
       </div>
     </div>
   `;
@@ -1572,6 +1611,7 @@ function renderList() {
       : "";
     return `
     <div class="card" data-id="${r.id}">
+      <div class="del-x" data-del-id="${r.id}" aria-label="删除房源">×</div>
       <div class="title">${escapeHtml(r.title)}${groupBadge}${otherTitles.has((r.title || "").trim()) ? ` <span style="font-size:10px;color:${isBuy ? "#ef4444" : "#16a34a"};background:${isBuy ? "#fef2f2" : "#f0fdf4"};padding:1px 5px;border-radius:3px;font-weight:normal;margin-left:4px">${isBuy ? "也在租" : "也在售"}</span>` : ""}</div>
       <div class="price" style="${isBuy ? "color:#16a34a" : ""}">${priceTxt}${count > 1 ? `<small style="margin-left:6px;color:#9ca3af;font-weight:normal">起，共 ${count} 条</small>` : ""}</div>
       <div class="meta">
@@ -1583,16 +1623,104 @@ function renderList() {
     </div>`;
   }).join("");
   list.querySelectorAll(".card").forEach(card => {
-    card.onclick = () => {
-      const id = card.dataset.id;
-      const r = rentals.find(x => x.id === id);
-      if (r) {
-        map.setZoomAndCenter(15, [r.lng, r.lat]);
-        showInfo(id);
-      }
-    };
+    bindCardInteractions(card);
   });
 }
+
+/* ===== 列表卡片交互:点击查看 / 长按抖动 / 点 × 删除 ===== */
+let _wiggleTimer = null;
+let _wigglingCard = null;
+function exitWiggle() {
+  if (_wigglingCard) {
+    _wigglingCard.classList.remove("wiggle");
+    _wigglingCard = null;
+  }
+  if (_wiggleTimer) { clearTimeout(_wiggleTimer); _wiggleTimer = null; }
+}
+function enterWiggle(card) {
+  if (_wigglingCard && _wigglingCard !== card) _wigglingCard.classList.remove("wiggle");
+  card.classList.add("wiggle");
+  _wigglingCard = card;
+  // 触觉反馈(支持的设备会震一下)
+  if (navigator.vibrate) try { navigator.vibrate(30); } catch(e) {}
+}
+function bindCardInteractions(card) {
+  let pressTimer = null;
+  let startX = 0, startY = 0;
+  let moved = false;
+  const LONG_PRESS_MS = 600;
+  const MOVE_TOL = 8;
+
+  const onStart = (clientX, clientY) => {
+    moved = false;
+    startX = clientX; startY = clientY;
+    pressTimer = setTimeout(() => {
+      enterWiggle(card);
+      pressTimer = null;
+    }, LONG_PRESS_MS);
+  };
+  const onMove = (clientX, clientY) => {
+    if (!pressTimer) return;
+    if (Math.abs(clientX - startX) > MOVE_TOL || Math.abs(clientY - startY) > MOVE_TOL) {
+      moved = true;
+      clearTimeout(pressTimer); pressTimer = null;
+    }
+  };
+  const onEnd = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  };
+
+  // 触摸
+  card.addEventListener("touchstart", e => {
+    if (e.target.classList.contains("del-x")) return;
+    const t = e.touches[0]; onStart(t.clientX, t.clientY);
+  }, { passive: true });
+  card.addEventListener("touchmove", e => { const t = e.touches[0]; onMove(t.clientX, t.clientY); }, { passive: true });
+  card.addEventListener("touchend", onEnd);
+  card.addEventListener("touchcancel", onEnd);
+
+  // 鼠标(桌面端长按也能进入,顺手)
+  card.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    if (e.target.classList.contains("del-x")) return;
+    onStart(e.clientX, e.clientY);
+  });
+  card.addEventListener("mousemove", e => onMove(e.clientX, e.clientY));
+  card.addEventListener("mouseup", onEnd);
+  card.addEventListener("mouseleave", onEnd);
+
+  // 点击:抖动态下点 × 才能触发删除,点卡片其它地方就退出抖动而不是看详情
+  card.addEventListener("click", e => {
+    // 长按刚结束的那一下 click 不进详情
+    if (moved) return;
+    if (e.target.classList.contains("del-x")) {
+      e.stopPropagation();
+      delRental(card.dataset.id);   // 走原本带 confirm 的逻辑
+      return;
+    }
+    if (card.classList.contains("wiggle")) {
+      // 抖动状态下点卡片本体 → 退出抖动,不进详情
+      e.stopPropagation();
+      exitWiggle();
+      return;
+    }
+    // 正常点击:看详情
+    const id = card.dataset.id;
+    const r = rentals.find(x => x.id === id);
+    if (r) {
+      map.setZoomAndCenter(15, [r.lng, r.lat]);
+      showInfo(id);
+    }
+  });
+}
+
+// 全局监听:点抖动卡片之外的任意地方 / 按 ESC / 滚动 → 退出抖动
+document.addEventListener("click", e => {
+  if (!_wigglingCard) return;
+  if (!e.target.closest || !e.target.closest(".card.wiggle")) exitWiggle();
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") exitWiggle(); });
+document.addEventListener("scroll", () => { if (_wigglingCard) exitWiggle(); }, true);
 
 $("search").oninput = renderList;
 $("price-max").oninput = renderList;
