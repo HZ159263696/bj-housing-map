@@ -1888,6 +1888,27 @@ function bootstrap() {
 
 window.addEventListener("load", bootstrap);
 
+/* ===== 临时调试浮层(手机看不到 console 时启用 ?debug=1) ===== */
+if (location.search.includes("debug=1")) {
+  const dbg = document.createElement("div");
+  dbg.id = "dbg-overlay";
+  dbg.style.cssText = "position:fixed;left:8px;bottom:8px;max-width:90vw;max-height:50vh;overflow:auto;background:rgba(0,0,0,.78);color:#fff;font:11px/1.4 monospace;padding:8px 10px;border-radius:6px;z-index:9999;white-space:pre-wrap;word-break:break-all";
+  document.body.appendChild(dbg);
+  const log = (...a) => { dbg.textContent += a.join(" ") + "\n"; };
+  log(`UA: ${navigator.userAgent.substring(0,120)}`);
+  log(`viewport: ${innerWidth}x${innerHeight} dpr=${devicePixelRatio}`);
+  log(`isMobileMQ: ${matchMedia("(max-width: 768px)").matches}`);
+  log(`AMap loaded: ${typeof AMap}`);
+  setTimeout(() => {
+    log(`mapEl children: ${document.getElementById("map")?.children?.length}`);
+    log(`amap els: ${document.querySelectorAll("[class*=amap]").length}`);
+    log(`canvas: ${document.querySelectorAll("canvas").length}`);
+    log(`map size: ${window.map?.getSize?.()}`);
+  }, 2500);
+  window.addEventListener("error", e => log(`ERR: ${e.message} @ ${e.filename?.split("/").pop()}:${e.lineno}`));
+  window.addEventListener("unhandledrejection", e => log(`REJ: ${e.reason?.message || e.reason}`));
+}
+
 /* —— 手机抽屉切换 —— */
 {
   const sidebar = document.getElementById("sidebar");
