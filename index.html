@@ -459,8 +459,46 @@
     .info-card .info-videos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
     .info-card .info-videos video { width: 100%; max-height: 180px; background: #000; border-radius: 6px; }
     .info-card .info-videos a { font-size: 12px; color: #2563eb; word-break: break-all; }
-    .info-card .info-actions { display: flex; gap: 6px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
-    .info-card .info-actions .btn { flex: 1; font-size: 12px; padding: 5px 8px; }
+    .info-card .info-actions {
+      display: flex;
+      gap: 6px;
+      padding-top: 10px;
+      border-top: 1px solid #f0f0f0;
+      flex-wrap: wrap;
+    }
+    .info-card .info-actions .btn {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 12px;
+      padding: 8px 6px;
+      font-weight: 500;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+    /* 导航按钮:主色调蓝 */
+    .info-card .info-actions .btn-nav {
+      background: linear-gradient(135deg,#2563eb,#1e40af);
+      color: #fff;
+      border-color: #1e40af;
+      box-shadow: 0 1px 3px rgba(37,99,235,.3);
+    }
+    .info-card .info-actions .btn-nav:hover { background: linear-gradient(135deg,#1e40af,#1e3a8a); }
+    /* 加入路线按钮:橙色 */
+    .info-card .info-actions .btn-pin {
+      background: #fff7ed;
+      color: #c2410c;
+      border-color: #fdba74;
+    }
+    .info-card .info-actions .btn-pin.pinned {
+      background: #16a34a;
+      color: #fff;
+      border-color: #15803d;
+    }
+    .info-card .info-actions .btn-pin:hover { background: #fed7aa; border-color: #fb923c; }
+    .info-card .info-actions .btn-pin.pinned:hover { background: #15803d; }
 
     /* 大图预览 */
     .lightbox {
@@ -533,8 +571,29 @@
       /* InfoWindow 内的视频别太大 */
       .info-card { width: 76vw; max-width: 320px; }
 
-      /* 多点路线面板手机端 */
-      #route-panel { bottom: 80px; right: 12px; left: 12px; width: auto; }
+      /* 多点路线面板手机端:固定在底部、整宽、圆角顶 */
+      #route-panel {
+        bottom: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        width: auto !important;
+        border-radius: 18px 18px 0 0 !important;
+        max-height: 60vh;
+        box-shadow: 0 -4px 20px rgba(0,0,0,.18) !important;
+      }
+      /* 抓手:视觉上提示能下拉关闭 */
+      #route-panel::before {
+        content: "";
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 38px;
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(255,255,255,.6);
+        pointer-events: none;
+      }
     }
   </style>
 </head>
@@ -681,24 +740,24 @@
   font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
   overflow:hidden;
 ">
-  <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
-    <span style="font-weight:600;font-size:14px">🗺️ 多点路线规划</span>
-    <button onclick="clearRoute()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">清空</button>
+  <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-weight:600;font-size:15px">🗺️ 多点路线规划</span>
+    <button onclick="clearRoute()" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:500">清空</button>
   </div>
   <div style="padding:10px 12px;border-bottom:1px solid #f0f0f0">
     <div style="font-size:12px;color:#6b7280;margin-bottom:8px">已选途经点（可拖动排序）：</div>
     <div id="route-stops" style="min-height:32px;max-height:180px;overflow-y:auto"></div>
   </div>
-  <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
-    <div style="display:flex;gap:6px">
-      <select id="route-mode" style="flex:1;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151">
+  <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:8px">
+      <select id="route-mode" style="flex:1;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#374151;background:#fff">
         <option value="walking">🚶 步行</option>
         <option value="driving">🚗 驾车</option>
         <option value="transit">🚇 公交</option>
       </select>
-      <button onclick="planRoute()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">规划</button>
+      <button onclick="planRoute()" style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:600;box-shadow:0 2px 6px rgba(37,99,235,.3);min-width:80px">规划</button>
     </div>
-    <button onclick="openAMapRoute()" style="background:#ff6b35;color:#fff;border:none;border-radius:6px;padding:8px;cursor:pointer;font-size:13px;width:100%">在高德地图中打开 →</button>
+    <button onclick="openAMapRoute()" style="background:linear-gradient(135deg,#ff6b35,#ea580c);color:#fff;border:none;border-radius:8px;padding:12px;cursor:pointer;font-size:14px;font-weight:600;width:100%;box-shadow:0 2px 6px rgba(234,88,12,.3)">在高德地图中打开 →</button>
   </div>
 </div>
 
@@ -1227,9 +1286,9 @@ function showGroupInfo(key, idx, _arr) {
       ${r.images && r.images.length ? `<div class="info-imgs">${r.images.map((src,i)=>`<img data-ref="${escapeHtml(src)}" data-img="${i}" data-id="${r.id}" />`).join("")}</div>` : ""}
       ${r.videos && r.videos.length ? `<div class="info-videos">${r.videos.map(src => renderVideoEntry(src)).join("")}</div>` : ""}
       <div class="info-actions" onclick="lockMapClick(500)">
-        <button class="btn" onclick="lockMapClick(500);editRental('${r.id}')">编辑</button>
-        <button class="btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="lockMapClick(500);navTo(${r.lng},${r.lat},'${escapeHtml(r.title)}')">🧭 导航</button>
-        <button class="btn" onclick="lockMapClick(500);toggleRoutePin('${r.id}',${r.lng},${r.lat},'${escapeHtml(r.title)}')" id="pin-btn-${r.id}">📍 加入路线</button>
+        <button class="btn" onclick="lockMapClick(500);editRental('${r.id}')">✏️ 编辑</button>
+        <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${r.lng},${r.lat},'${escapeHtml(r.title)}')">🧭 导航</button>
+        <button class="btn btn-pin${routeStops.some(s=>s.id===r.id)?' pinned':''}" onclick="lockMapClick(500);toggleRoutePin('${r.id}',${r.lng},${r.lat},'${escapeHtml(r.title)}')" id="pin-btn-${r.id}">${routeStops.some(s=>s.id===r.id)?'✅ 已加入':'📍 加入路线'}</button>
       </div>
     </div>
   `;
@@ -2007,9 +2066,15 @@ window.toggleRoutePin = function(id, lng, lat, name) {
     routeStops.push({ id, lng, lat, name });
   }
   renderRoutePanel();
-  // 更新按钮文字
+  // 更新按钮文字 + class
   const btn = document.getElementById("pin-btn-" + id);
-  if (btn) btn.textContent = routeStops.some(s => s.id === id) ? "✅ 已加入" : "📍 加入路线";
+  const pinned = routeStops.some(s => s.id === id);
+  if (btn) {
+    btn.textContent = pinned ? "✅ 已加入" : "📍 加入路线";
+    btn.classList.toggle("pinned", pinned);
+  }
+  // 加入路线时给个轻提示(手机更友好)
+  if (pinned && typeof showTip === "function") showTip(`已加入路线 (共 ${routeStops.length} 站)`, 1500);
 };
 
 function renderRoutePanel() {
@@ -2021,27 +2086,35 @@ function renderRoutePanel() {
   }
   panel.style.display = "";
   list.innerHTML = routeStops.map((s, i) => `
-    <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
-      <span style="background:#2563eb;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">${i+1}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(s.name)}</span>
-      <button onclick="removeStop('${s.id}')" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:15px;padding:0 4px">×</button>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+      <span style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">${i+1}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">${escapeHtml(s.name)}</span>
+      <button onclick="removeStop('${s.id}')" aria-label="移除" style="background:#fee2e2;border:none;cursor:pointer;color:#dc2626;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:600">×</button>
     </div>
   `).join("");
 }
 
 window.removeStop = function(id) {
   routeStops = routeStops.filter(s => s.id !== id);
-  // 恢复按钮文字
+  // 恢复按钮文字 + class
   const btn = document.getElementById("pin-btn-" + id);
-  if (btn) btn.textContent = "📍 加入路线";
+  if (btn) {
+    btn.textContent = "📍 加入路线";
+    btn.classList.remove("pinned");
+  }
   renderRoutePanel();
   if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
 };
 
 window.clearRoute = function() {
+  if (!routeStops.length) return;
+  if (!confirm(`清空路线规划 (${routeStops.length} 站)?`)) return;
   routeStops.forEach(s => {
     const btn = document.getElementById("pin-btn-" + s.id);
-    if (btn) btn.textContent = "📍 加入路线";
+    if (btn) {
+      btn.textContent = "📍 加入路线";
+      btn.classList.remove("pinned");
+    }
   });
   routeStops = [];
   renderRoutePanel();
