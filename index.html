@@ -532,6 +532,9 @@
 
       /* InfoWindow 内的视频别太大 */
       .info-card { width: 76vw; max-width: 320px; }
+
+      /* 多点路线面板手机端 */
+      #route-panel { bottom: 80px; right: 12px; left: 12px; width: auto; }
     }
   </style>
 </head>
@@ -669,6 +672,35 @@
 
 <!-- 大图预览 -->
 <div class="lightbox" id="lightbox"><img id="lightbox-img" src="" /></div>
+
+<!-- 多点路线规划面板 -->
+<div id="route-panel" style="
+  display:none;position:fixed;bottom:24px;right:24px;
+  width:280px;background:#fff;border-radius:12px;
+  box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+  overflow:hidden;
+">
+  <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-weight:600;font-size:14px">🗺️ 多点路线规划</span>
+    <button onclick="clearRoute()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">清空</button>
+  </div>
+  <div style="padding:10px 12px;border-bottom:1px solid #f0f0f0">
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px">已选途经点（可拖动排序）：</div>
+    <div id="route-stops" style="min-height:32px;max-height:180px;overflow-y:auto"></div>
+  </div>
+  <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:6px">
+      <select id="route-mode" style="flex:1;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;color:#374151">
+        <option value="walking">🚶 步行</option>
+        <option value="driving">🚗 驾车</option>
+        <option value="transit">🚇 公交</option>
+      </select>
+      <button onclick="planRoute()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600">规划</button>
+    </div>
+    <button onclick="openAMapRoute()" style="background:#ff6b35;color:#fff;border:none;border-radius:6px;padding:8px;cursor:pointer;font-size:13px;width:100%">在高德地图中打开 →</button>
+  </div>
+</div>
 
 <script>
 /* ========================================================
@@ -1181,7 +1213,8 @@ function showGroupInfo(key, idx, _arr) {
       ${r.videos && r.videos.length ? `<div class="info-videos">${r.videos.map(src => renderVideoEntry(src)).join("")}</div>` : ""}
       <div class="info-actions">
         <button class="btn" onclick="editRental('${r.id}')">编辑</button>
-        <!-- 删除入口已移至列表卡片长按交互(避免误触) -->
+        <button class="btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="navTo(${r.lng},${r.lat},'${escapeHtml(r.title)}')">🧭 导航</button>
+        <button class="btn" onclick="toggleRoutePin('${r.id}',${r.lng},${r.lat},'${escapeHtml(r.title)}')" id="pin-btn-${r.id}">📍 加入路线</button>
       </div>
     </div>
   `;
@@ -1893,6 +1926,121 @@ document.querySelectorAll(".mode-tab").forEach(el => {
     applyMode();
   });
 });
+
+/* ========================================================
+ *  A. 单点导航 — 调用高德地图导航
+ * ======================================================== */
+window.navTo = function(lng, lat, name) {
+  // 手机端优先唤起高德 App，否则打开网页版
+  const encoded = encodeURIComponent(name || "目的地");
+  const appUrl  = `androidamap://navi?sourceApplication=bj-housing&lat=${lat}&lon=${lng}&dev=0&style=2&poiname=${encoded}`;
+  const webUrl  = `https://uri.amap.com/navigation?to=${lng},${lat},${encoded}&mode=car&src=myapp&coordinate=gaode&callnative=1`;
+
+  // 尝试唤起 App（移动端），3s 后如果没跳转则打开网页
+  if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    const t = Date.now();
+    window.location.href = appUrl;
+    setTimeout(() => {
+      if (Date.now() - t < 3500) window.open(webUrl, "_blank");
+    }, 2500);
+  } else {
+    window.open(webUrl, "_blank");
+  }
+};
+
+/* ========================================================
+ *  B. 多点路线规划
+ * ======================================================== */
+let routeStops  = [];   // [{id, lng, lat, name}]
+let routePolyline = null;
+
+window.toggleRoutePin = function(id, lng, lat, name) {
+  const idx = routeStops.findIndex(s => s.id === id);
+  if (idx >= 0) {
+    routeStops.splice(idx, 1);
+  } else {
+    routeStops.push({ id, lng, lat, name });
+  }
+  renderRoutePanel();
+  // 更新按钮文字
+  const btn = document.getElementById("pin-btn-" + id);
+  if (btn) btn.textContent = routeStops.some(s => s.id === id) ? "✅ 已加入" : "📍 加入路线";
+};
+
+function renderRoutePanel() {
+  const panel = document.getElementById("route-panel");
+  const list  = document.getElementById("route-stops");
+  if (!routeStops.length) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "";
+  list.innerHTML = routeStops.map((s, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+      <span style="background:#2563eb;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">${i+1}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(s.name)}</span>
+      <button onclick="removeStop('${s.id}')" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:15px;padding:0 4px">×</button>
+    </div>
+  `).join("");
+}
+
+window.removeStop = function(id) {
+  routeStops = routeStops.filter(s => s.id !== id);
+  // 恢复按钮文字
+  const btn = document.getElementById("pin-btn-" + id);
+  if (btn) btn.textContent = "📍 加入路线";
+  renderRoutePanel();
+  if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+};
+
+window.clearRoute = function() {
+  routeStops.forEach(s => {
+    const btn = document.getElementById("pin-btn-" + s.id);
+    if (btn) btn.textContent = "📍 加入路线";
+  });
+  routeStops = [];
+  renderRoutePanel();
+  if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+};
+
+// 在地图上画折线连接各点（实际路径规划需要 AMap.Driving/Walking 插件）
+window.planRoute = function() {
+  if (routeStops.length < 2) { showTip("请至少选择 2 个地点", 2000); return; }
+  if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+
+  const path = routeStops.map(s => new AMap.LngLat(s.lng, s.lat));
+  routePolyline = new AMap.Polyline({
+    path,
+    strokeColor: "#2563eb",
+    strokeWeight: 4,
+    strokeOpacity: 0.9,
+    strokeStyle: "dashed",
+    lineJoin: "round",
+    map
+  });
+
+  // 自动缩放视野
+  map.setFitView([ routePolyline, ...routeStops.map(s => new AMap.Marker({ position: [s.lng, s.lat] })) ]);
+  showTip(`已连线 ${routeStops.length} 个地点，点"在高德地图中打开"查看精确路径`, 3000);
+};
+
+// 打开高德地图网页版多点路线
+window.openAMapRoute = function() {
+  if (routeStops.length < 2) { showTip("请至少选择 2 个地点", 2000); return; }
+  const mode = document.getElementById("route-mode").value;
+  const modeMap = { walking: "4", driving: "0", transit: "1" };
+
+  // 高德 URI 格式：from=起点&to=终点&via=途经点1|途经点2
+  const [from, ...rest] = routeStops;
+  const to = rest[rest.length - 1];
+  const vias = rest.slice(0, -1);
+
+  let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${modeMap[mode] || "0"}&src=myapp&coordinate=gaode&callnative=1`;
+  if (vias.length) {
+    url += "&via=" + vias.map(v => `${v.lng},${v.lat}`).join("|");
+  }
+  window.open(url, "_blank");
+};
 
 </script>
 
