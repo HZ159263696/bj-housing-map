@@ -13,7 +13,7 @@
     };
   </script>
   <!-- 高德地图 JS API -->
-  <script src="https://webapi.amap.com/maps?v=2.0&key=1af01d7dc6ef58c3d0001575fcc07fc7&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete,AMap.Driving,AMap.Transfer,AMap.Riding"></script>
+  <script src="https://webapi.amap.com/maps?v=2.0&key=1af01d7dc6ef58c3d0001575fcc07fc7&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete,AMap.Driving,AMap.Transfer,AMap.Riding,AMap.Walking"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -438,6 +438,18 @@
     }
 
     .modal-mask.company-mode .rental-only { display: none !important; }
+    .csort-btn {
+      flex: 1; min-width: 0; padding: 6px 4px;
+      border: 1px solid #d1d5db; border-radius: 6px;
+      font-size: 11px; cursor: pointer; white-space: nowrap;
+      background: #f3f4f6; color: #6b7280; font-weight: 500;
+      transition: all .12s;
+    }
+    .csort-btn.csort-active {
+      background: #7c3aed; color: #fff; border-color: #6d28d9;
+    }
+    #commute-sort-tabs { display: flex !important; }
+    #commute-sort-tabs.hidden { display: none !important; }
 
     .modal-footer {
       padding: 12px 20px;
@@ -807,7 +819,14 @@
   <div style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
     <button onclick="calcCommute()" style="width:100%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(124,58,237,.3)">🔄 计算通勤时间</button>
   </div>
-  <div id="commute-results" style="padding:10px 12px;font-size:13px;color:#374151;max-height:260px;overflow-y:auto">
+  <!-- 排序方式 Tab（界面中间） -->
+  <div id="commute-sort-tabs" class="hidden" style="padding:8px 10px;border-bottom:1px solid #f0f0f0;gap:5px;flex-wrap:wrap">
+    <button id="csort-transit" onclick="setCommuteSortMode('transit')" class="csort-btn csort-active">🚇公交</button>
+    <button id="csort-walking" onclick="setCommuteSortMode('walking')" class="csort-btn">🚶步行<span style="font-size:10px;opacity:.75">&lt;30分</span></button>
+    <button id="csort-riding"  onclick="setCommuteSortMode('riding')"  class="csort-btn">🚲骑行</button>
+    <button id="csort-driving" onclick="setCommuteSortMode('driving')" class="csort-btn">🚗驾车</button>
+  </div>
+  <div id="commute-results" style="padding:10px 12px;font-size:13px;color:#374151;max-height:280px;overflow-y:auto">
     <div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">选好公司 + 房源后点击计算</div>
   </div>
 </div>
@@ -919,6 +938,8 @@ function uid() {
 let rentals = [];   // 当前模式数据，applyMode 时拉取填充
 let commuteCompanies = [];  // [{id, lng, lat, name}] — hoisted, populated later
 let commuteRentals   = [];  // [{id, lng, lat, name}] — rentals selected for commute
+let commuteSortMode  = "transit";  // active sort column
+let commuteAllResults = [];        // raw results from last calcCommute()
 
 /* ===== 旧的 IndexedDB / localStorage 代码已删除（替换为云端 API） ===== */
 
@@ -2421,6 +2442,11 @@ function getRouteTime(fromLng, fromLat, toLng, toLat, mode) {
       rd.search(origin, dest, (status, result) => {
         resolve(status === "complete" && result.routes && result.routes.length ? result.routes[0].time : null);
       });
+    } else if (mode === "walking") {
+      const wk = new AMap.Walking();
+      wk.search(origin, dest, (status, result) => {
+        resolve(status === "complete" && result.routes && result.routes.length ? result.routes[0].time : null);
+      });
     } else {
       const dr = new AMap.Driving();
       dr.search(origin, dest, (status, result) => {
@@ -2456,43 +2482,102 @@ window.calcCommute = async function() {
   if (!commuteRentals.length)   { showTip("请展开房源 ⋯ 点「🏢 加入通勤」选择房源", 2000); return; }
 
   $("commute-results").innerHTML = `<div style="text-align:center;padding:10px;color:#6b7280;font-size:12px">⏳ 计算中，请稍候...</div>`;
+  $("commute-sort-tabs").classList.add("hidden");
 
   const allRows = [];
   for (const r of commuteRentals) {
     const compTimes = [];
     for (const c of commuteCompanies) {
-      const [transit, riding, driving] = await Promise.all([
+      const [transit, riding, driving, walking] = await Promise.all([
         getRouteTime(r.lng, r.lat, c.lng, c.lat, "transit"),
         getRouteTime(r.lng, r.lat, c.lng, c.lat, "riding"),
         getRouteTime(r.lng, r.lat, c.lng, c.lat, "driving"),
+        getRouteTime(r.lng, r.lat, c.lng, c.lat, "walking"),
       ]);
-      compTimes.push({ company: c.name, transit, riding, driving });
+      compTimes.push({ company: c.name, transit, riding, driving, walking });
     }
     allRows.push({ rental: r.name, times: compTimes });
   }
 
-  $("commute-results").innerHTML = allRows.map(row => `
-    <div style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
-      <div style="background:#f3f4f6;padding:6px 10px;font-size:12px;font-weight:600;color:#374151">📍 ${escapeHtml(row.rental)}</div>
-      ${row.times.map(t => `
-        <div style="padding:7px 10px;border-top:1px solid #f0f0f0">
-          <div style="font-size:11px;color:#7c3aed;font-weight:600;margin-bottom:3px">→ ${escapeHtml(t.company)}</div>
-          <div style="display:flex;gap:12px;font-size:12px;color:#374151">
-            <span>🚇 ${fmtTime(t.transit)}</span>
-            <span>🚲 ${fmtTime(t.riding)}</span>
-            <span>🚗 ${fmtTime(t.driving)}</span>
-          </div>
-        </div>
-      `).join("")}
-    </div>
-  `).join("");
+  commuteAllResults = allRows;
+  commuteSortMode = "transit";
+  // reset active tab
+  document.querySelectorAll(".csort-btn").forEach(b => b.classList.remove("csort-active"));
+  const def = document.getElementById("csort-transit");
+  if (def) def.classList.add("csort-active");
+  $("commute-sort-tabs").classList.remove("hidden");
+  renderCommuteResults();
   showTip("通勤计算完成", 1500);
 };
 
+// 按当前 commuteSortMode 渲染排序结果
+function renderCommuteResults() {
+  if (!commuteAllResults.length) return;
+  const mode = commuteSortMode;
+  const WALK_LIMIT = 1800; // 30 min in seconds
+
+  // 计算每条房源在当前模式下到各公司的最短时间（用于排序）
+  let rows = commuteAllResults.map(row => {
+    const validTimes = row.times.map(t => t[mode]).filter(t => t != null);
+    const minTime = validTimes.length ? Math.min(...validTimes) : Infinity;
+    return { ...row, minTime };
+  });
+
+  // 步行模式：只保留步行最短时间 < 30 分钟的房源
+  if (mode === "walking") {
+    rows = rows.filter(row => row.minTime < WALK_LIMIT);
+    if (!rows.length) {
+      $("commute-results").innerHTML = `<div style="color:#9ca3af;font-size:12px;text-align:center;padding:12px 0">步行30分钟内无匹配房源</div>`;
+      return;
+    }
+  }
+
+  // 从短到长排序
+  rows.sort((a, b) => a.minTime - b.minTime);
+
+  $("commute-results").innerHTML = rows.map((row, idx) => {
+    const isTop = idx === 0;
+    return `
+      <div style="margin-bottom:10px;border:1px solid ${isTop ? '#7c3aed' : '#e5e7eb'};border-radius:8px;overflow:hidden${isTop ? ';box-shadow:0 0 0 1px #7c3aed33' : ''}">
+        <div style="background:${isTop ? '#f5f3ff' : '#f3f4f6'};padding:6px 10px;font-size:12px;font-weight:600;color:#374151;display:flex;align-items:center;gap:6px">
+          <span style="background:${isTop ? '#7c3aed' : '#9ca3af'};color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">${idx + 1}</span>
+          📍 ${escapeHtml(row.rental)}
+        </div>
+        ${row.times.map(t => {
+          const walkOk = t.walking != null && t.walking < WALK_LIMIT;
+          const hi = (m) => m === mode ? 'font-weight:700;color:#7c3aed' : 'color:#374151';
+          return `
+            <div style="padding:7px 10px;border-top:1px solid #f0f0f0">
+              <div style="font-size:11px;color:#7c3aed;font-weight:600;margin-bottom:4px">→ ${escapeHtml(t.company)}</div>
+              <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap">
+                ${walkOk ? `<span style="${hi('walking')}">🚶 ${fmtTime(t.walking)}</span>` : ''}
+                <span style="${hi('transit')}">🚇 ${fmtTime(t.transit)}</span>
+                <span style="${hi('riding')}">🚲 ${fmtTime(t.riding)}</span>
+                <span style="${hi('driving')}">🚗 ${fmtTime(t.driving)}</span>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }).join("");
+}
+
+window.setCommuteSortMode = function(mode) {
+  commuteSortMode = mode;
+  document.querySelectorAll(".csort-btn").forEach(b => b.classList.remove("csort-active"));
+  const btn = document.getElementById("csort-" + mode);
+  if (btn) btn.classList.add("csort-active");
+  renderCommuteResults();
+};
+
 window.clearCommutePanel = function() {
-  commuteCompanies = [];
-  commuteRentals   = [];
+  commuteCompanies  = [];
+  commuteRentals    = [];
+  commuteAllResults = [];
+  commuteSortMode   = "transit";
   renderCommutePanel();
+  $("commute-sort-tabs").classList.add("hidden");
   $("commute-results").innerHTML = `<div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">选好公司 + 房源后点击计算</div>`;
 };
 
