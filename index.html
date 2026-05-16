@@ -1416,7 +1416,7 @@ window.switchToOther = async function(mode, id) {
   setTimeout(() => {
     const r = rentals.find(x => x.id === id);
     if (r) {
-      map.setZoomAndCenter(15, [r.lng, r.lat]);
+      map.setZoomAndCenter(15, [r.lng, r.lat], true);
       showInfo(id);
     }
   }, 50);
@@ -1789,6 +1789,7 @@ function bindCardInteractions(card) {
   let pressTimer = null;
   let startX = 0, startY = 0;
   let moved = false;
+  let _ignoreNextClick = false;
   const LONG_PRESS_MS = 600;
   const MOVE_TOL = 8;
 
@@ -1809,6 +1810,11 @@ function bindCardInteractions(card) {
   };
   const onEnd = () => {
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    // 长按刚触发抖动时(pressTimer已在回调中清空)，屏蔽紧跟的 click，防止 wiggle 瞬间被退出
+    if (card.classList.contains("wiggle")) {
+      _ignoreNextClick = true;
+      setTimeout(() => { _ignoreNextClick = false; }, 100);
+    }
   };
 
   // 触摸
@@ -1840,8 +1846,9 @@ function bindCardInteractions(card) {
       return;
     }
     if (card.classList.contains("wiggle")) {
-      // 抖动状态下点卡片本体 → 退出抖动,不进详情
       e.stopPropagation();
+      // 长按刚触发的那次 click 不退出抖动，让用户有机会点 ×
+      if (_ignoreNextClick) { _ignoreNextClick = false; return; }
       exitWiggle();
       return;
     }
@@ -1849,7 +1856,7 @@ function bindCardInteractions(card) {
     const id = card.dataset.id;
     const r = rentals.find(x => x.id === id);
     if (r) {
-      map.setZoomAndCenter(15, [r.lng, r.lat]);
+      map.setZoomAndCenter(15, [r.lng, r.lat], true);
       showInfo(id);
     }
   });
