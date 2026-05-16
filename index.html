@@ -898,6 +898,9 @@ function initMap() {
 
   geocoder = new AMap.Geocoder({ city: "北京" });
   infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -32), closeWhenClickMap: true });
+  infoWindow.on('close', () => {
+    document.querySelectorAll('.info-card video').forEach(v => { try { v.pause(); } catch(e) {} });
+  });
 
   map.on("click", onMapClick);
 
