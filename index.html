@@ -460,11 +460,21 @@
     .info-card .info-videos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
     .info-card .info-videos video { width: 100%; max-height: 180px; background: #000; border-radius: 6px; }
     .info-card .info-videos a { font-size: 12px; color: #2563eb; word-break: break-all; }
+    .info-card .info-actions-wrap {
+      padding-top: 10px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .info-card .info-more-btn {
+      width: 100%;
+      font-size: 13px;
+      padding: 9px;
+      color: #6b7280;
+      letter-spacing: .08em;
+      transition: opacity .15s;
+    }
     .info-card .info-actions {
       display: flex;
       gap: 6px;
-      padding-top: 10px;
-      border-top: 1px solid #f0f0f0;
       flex-wrap: wrap;
     }
     .info-card .info-actions .btn {
@@ -1286,10 +1296,10 @@ function showGroupInfo(key, idx, _arr) {
       ${r.contact ? `<div class="info-contact">📞 ${escapeHtml(r.contact)}</div>` : ""}
       ${r.images && r.images.length ? `<div class="info-imgs">${r.images.map((src,i)=>`<img data-ref="${escapeHtml(src)}" data-img="${i}" data-id="${r.id}" />`).join("")}</div>` : ""}
       ${r.videos && r.videos.length ? `<div class="info-videos">${r.videos.map(src => renderVideoEntry(src)).join("")}</div>` : ""}
-      <div class="info-actions" onclick="lockMapClick(500)">
-        <button class="btn" onclick="lockMapClick(500);editRental('${r.id}')">✏️ 编辑</button>
-        <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${r.lng},${r.lat},'${escapeHtml(r.title)}')">🧭 导航</button>
-        <button class="btn btn-pin${routeStops.some(s=>s.id===r.id)?' pinned':''}" onclick="lockMapClick(500);toggleRoutePin('${r.id}',${r.lng},${r.lat},'${escapeHtml(r.title)}')" id="pin-btn-${r.id}">${routeStops.some(s=>s.id===r.id)?'✅ 已加入':'📍 加入路线'}</button>
+      <div class="info-actions-wrap">
+        <button class="btn info-more-btn" id="info-more-btn"
+          data-id="${r.id}" data-lng="${r.lng}" data-lat="${r.lat}" data-title="${escapeHtml(r.title)}"
+          onclick="window.expandInfoActions(this)">⋯ 更多操作</button>
       </div>
     </div>
   `;
@@ -1304,8 +1314,28 @@ function showGroupInfo(key, idx, _arr) {
       img.onclick = () => { if (img.src) showLightbox(img.src); };
     });
     if (arr.length > 1 && root) bindSwipe(root);
+    // 方案一：延迟 400ms 激活 ⋯ 按钮，防止 marker 点击的幻影触发
+    const moreBtn = root?.querySelector('#info-more-btn');
+    if (moreBtn) {
+      moreBtn.style.pointerEvents = 'none';
+      moreBtn.style.opacity = '0.4';
+      setTimeout(() => { moreBtn.style.pointerEvents = ''; moreBtn.style.opacity = ''; }, 400);
+    }
   }, 50);
 }
+
+// 方案三：点击 ⋯ 展开操作按钮
+window.expandInfoActions = function(btn) {
+  const { id, lng, lat, title } = btn.dataset;
+  const wrap = btn.closest('.info-actions-wrap');
+  if (!wrap) return;
+  const isPinned = routeStops.some(s => s.id === id);
+  wrap.innerHTML = `<div class="info-actions" onclick="lockMapClick(500)">
+    <button class="btn" onclick="lockMapClick(500);editRental('${id}')">✏️ 编辑</button>
+    <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${lng},${lat},'${escapeHtml(title)}')">🧭 导航</button>
+    <button class="btn btn-pin${isPinned ? ' pinned' : ''}" onclick="lockMapClick(500);toggleRoutePin('${id}',${lng},${lat},'${escapeHtml(title)}')" id="pin-btn-${id}">${isPinned ? '✅ 已加入' : '📍 加入路线'}</button>
+  </div>`;
+};
 
 // 渲染 InfoWindow 中的单个视频条目（本地 base64 / 直链 mp4 / B站 / YouTube / 通用外链）
 function renderVideoEntry(src) {
