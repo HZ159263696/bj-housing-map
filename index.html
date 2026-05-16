@@ -787,7 +787,7 @@
 <!-- 通勤对比面板 -->
 <div id="commute-panel" style="
   display:none;position:fixed;bottom:24px;right:320px;
-  width:260px;background:#fff;border-radius:12px;
+  width:280px;background:#fff;border-radius:12px;
   box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;
   font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
   overflow:hidden;
@@ -796,9 +796,19 @@
     <span style="font-weight:600;font-size:14px">🏢 通勤对比</span>
     <button onclick="clearCommutePanel()" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:500">清空</button>
   </div>
-  <div id="commute-companies" style="padding:10px 12px;border-bottom:1px solid #f0f0f0;max-height:130px;overflow-y:auto"></div>
-  <div id="commute-results" style="padding:10px 12px;font-size:13px;color:#374151;max-height:220px;overflow-y:auto">
-    <div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">点击房源InfoWindow中的 🏢 通勤 按钮查看通勤时间</div>
+  <div style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
+    <div style="font-size:11px;color:#7c3aed;font-weight:700;margin-bottom:4px;letter-spacing:.04em">公司</div>
+    <div id="commute-companies" style="max-height:90px;overflow-y:auto"></div>
+  </div>
+  <div style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
+    <div style="font-size:11px;color:#ef4444;font-weight:700;margin-bottom:4px;letter-spacing:.04em">房源（可多选）</div>
+    <div id="commute-rentals" style="max-height:90px;overflow-y:auto"></div>
+  </div>
+  <div style="padding:8px 12px;border-bottom:1px solid #f0f0f0">
+    <button onclick="calcCommute()" style="width:100%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(124,58,237,.3)">🔄 计算通勤时间</button>
+  </div>
+  <div id="commute-results" style="padding:10px 12px;font-size:13px;color:#374151;max-height:260px;overflow-y:auto">
+    <div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">选好公司 + 房源后点击计算</div>
   </div>
 </div>
 
@@ -908,6 +918,7 @@ function uid() {
 
 let rentals = [];   // 当前模式数据，applyMode 时拉取填充
 let commuteCompanies = [];  // [{id, lng, lat, name}] — hoisted, populated later
+let commuteRentals   = [];  // [{id, lng, lat, name}] — rentals selected for commute
 
 /* ===== 旧的 IndexedDB / localStorage 代码已删除（替换为云端 API） ===== */
 
@@ -1416,12 +1427,12 @@ window.expandInfoActions = function(btn) {
   const wrap = btn.closest('.info-actions-wrap');
   if (!wrap) return;
   const isPinned = routeStops.some(s => s.id === id);
-  const hasCommute = commuteCompanies.length > 0;
+  const inCommute = commuteRentals.some(r => r.id === id);
   wrap.innerHTML = `<div class="info-actions" onclick="lockMapClick(500)">
     <button class="btn" onclick="lockMapClick(500);editRental('${id}')">✏️ 编辑</button>
     <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${lng},${lat},'${escapeHtml(title)}')">🧭 导航</button>
     <button class="btn btn-pin${isPinned ? ' pinned' : ''}" onclick="lockMapClick(500);toggleRoutePin('${id}',${lng},${lat},'${escapeHtml(title)}')" id="pin-btn-${id}">${isPinned ? '✅ 已加入' : '📍 加入路线'}</button>
-    ${hasCommute ? `<button class="btn" onclick="lockMapClick(500);showCommuteFor('${id}')" style="background:#f5f3ff;border-color:#ddd6fe;color:#7c3aed">🏢 通勤</button>` : ""}
+    <button class="btn" onclick="lockMapClick(500);toggleCommuteRental('${id}',${lng},${lat},'${escapeHtml(title)}')" id="commute-r-btn-${id}" style="${inCommute ? 'background:#7c3aed;color:#fff;border-color:#6d28d9' : 'background:#f5f3ff;border-color:#ddd6fe;color:#7c3aed'}">${inCommute ? '✅ 通勤已选' : '🏢 加入通勤'}</button>
   </div>`;
 };
 
@@ -1519,11 +1530,12 @@ window.delRental = async function(id) {
   } catch(e) { alert(e.message); return; }
   rentals = rentals.filter(x => x.id !== id);
   if (isCompany) {
-    // remove from company overlays cache and update commute list
     invalidateModeCache("company");
     commuteCompanies = commuteCompanies.filter(c => c.id !== id);
-    renderCommutePanel();
+  } else {
+    commuteRentals = commuteRentals.filter(r => r.id !== id);
   }
+  renderCommutePanel();
   rebuildMarkers();
   renderList();
   infoWindow.close();
@@ -2365,17 +2377,27 @@ window.toggleCommuteCompany = function(id, lng, lat, name) {
   renderCommutePanel();
 };
 
+function commuteItemHtml(item, removeFn) {
+  return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px">
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">${escapeHtml(item.name)}</span>
+    <button onclick="${removeFn}" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;flex-shrink:0">×</button>
+  </div>`;
+}
+
 function renderCommutePanel() {
   const panel = $("commute-panel");
-  if (!commuteCompanies.length) { panel.style.display = "none"; return; }
+  if (!commuteCompanies.length && !commuteRentals.length) { panel.style.display = "none"; return; }
   panel.style.display = "";
-  $("commute-companies").innerHTML = commuteCompanies.map(c => `
-    <div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px">
-      <span style="background:#7c3aed;color:#fff;border-radius:4px;padding:1px 6px;flex-shrink:0;font-size:11px">🏢</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">${escapeHtml(c.name)}</span>
-      <button onclick="toggleCommuteCompany('${c.id}',${c.lng},${c.lat},'${escapeHtml(c.name)}')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;flex-shrink:0">×</button>
-    </div>
-  `).join("");
+
+  $("commute-companies").innerHTML = commuteCompanies.length
+    ? commuteCompanies.map(c => commuteItemHtml(c,
+        `toggleCommuteCompany('${c.id}',${c.lng},${c.lat},'${escapeHtml(c.name)}')`)).join("")
+    : `<div style="color:#9ca3af;font-size:12px">去公司标点选择</div>`;
+
+  $("commute-rentals").innerHTML = commuteRentals.length
+    ? commuteRentals.map(r => commuteItemHtml(r,
+        `toggleCommuteRental('${r.id}',${r.lng},${r.lat},'${escapeHtml(r.name)}')`)).join("")
+    : `<div style="color:#9ca3af;font-size:12px">展开房源 ⋯ 选择</div>`;
 }
 
 function fmtTime(seconds) {
@@ -2408,50 +2430,70 @@ function getRouteTime(fromLng, fromLat, toLng, toLat, mode) {
   });
 }
 
-window.showCommuteFor = async function(rentalId) {
-  if (!commuteCompanies.length) { showTip("请先点击公司地点并选择「📊 通勤对比」", 2500); return; }
-  // find rental in current or cached modes
-  const r = rentals.find(x => x.id === rentalId)
-    || (_modeCache["rent"] || []).find(x => x.id === rentalId)
-    || (_modeCache["buy"]  || []).find(x => x.id === rentalId);
-  if (!r) return;
+window.toggleCommuteRental = function(id, lng, lat, name) {
+  id = String(id); lng = parseFloat(lng); lat = parseFloat(lat);
+  const idx = commuteRentals.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    commuteRentals.splice(idx, 1);
+  } else {
+    commuteRentals.push({ id, lng, lat, name });
+    showTip(`已加入通勤对比，共 ${commuteRentals.length} 条房源`, 1500);
+  }
+  renderCommutePanel();
+  // 同步更新 InfoWindow 内按钮状态
+  const btn = document.getElementById("commute-r-btn-" + id);
+  if (btn) {
+    const pinned = commuteRentals.some(r => r.id === id);
+    btn.textContent = pinned ? "✅ 通勤已选" : "🏢 加入通勤";
+    btn.style.background = pinned ? "#7c3aed" : "#f5f3ff";
+    btn.style.color = pinned ? "#fff" : "#7c3aed";
+    btn.style.borderColor = pinned ? "#6d28d9" : "#ddd6fe";
+  }
+};
 
-  const panel = $("commute-panel");
-  panel.style.display = "";
-  $("commute-results").innerHTML = `<div style="color:#6b7280;font-size:12px;padding:6px 0;text-align:center">⏳ 计算中...</div>`;
+window.calcCommute = async function() {
+  if (!commuteCompanies.length) { showTip("请先在🏢公司标点选择公司", 2000); return; }
+  if (!commuteRentals.length)   { showTip("请展开房源 ⋯ 点「🏢 加入通勤」选择房源", 2000); return; }
 
-  const rows = [];
-  for (const c of commuteCompanies) {
-    const [transit, riding, driving] = await Promise.all([
-      getRouteTime(r.lng, r.lat, c.lng, c.lat, "transit"),
-      getRouteTime(r.lng, r.lat, c.lng, c.lat, "riding"),
-      getRouteTime(r.lng, r.lat, c.lng, c.lat, "driving"),
-    ]);
-    rows.push({ company: c.name, transit, riding, driving });
+  $("commute-results").innerHTML = `<div style="text-align:center;padding:10px;color:#6b7280;font-size:12px">⏳ 计算中，请稍候...</div>`;
+
+  const allRows = [];
+  for (const r of commuteRentals) {
+    const compTimes = [];
+    for (const c of commuteCompanies) {
+      const [transit, riding, driving] = await Promise.all([
+        getRouteTime(r.lng, r.lat, c.lng, c.lat, "transit"),
+        getRouteTime(r.lng, r.lat, c.lng, c.lat, "riding"),
+        getRouteTime(r.lng, r.lat, c.lng, c.lat, "driving"),
+      ]);
+      compTimes.push({ company: c.name, transit, riding, driving });
+    }
+    allRows.push({ rental: r.name, times: compTimes });
   }
 
-  $("commute-results").innerHTML = `
-    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;background:#f3f4f6;padding:6px 8px;border-radius:6px">
-      📍 ${escapeHtml(r.title)}
-    </div>
-    ${rows.map(row => `
-      <div style="margin-bottom:8px;background:#faf5ff;border:1px solid #ede9fe;border-left:3px solid #7c3aed;border-radius:6px;padding:8px 10px">
-        <div style="font-size:11px;color:#7c3aed;font-weight:600;margin-bottom:5px">→ ${escapeHtml(row.company)}</div>
-        <div style="display:flex;gap:12px;font-size:12px;color:#374151">
-          <span title="公交">🚇 ${fmtTime(row.transit)}</span>
-          <span title="骑行">🚲 ${fmtTime(row.riding)}</span>
-          <span title="驾车">🚗 ${fmtTime(row.driving)}</span>
+  $("commute-results").innerHTML = allRows.map(row => `
+    <div style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+      <div style="background:#f3f4f6;padding:6px 10px;font-size:12px;font-weight:600;color:#374151">📍 ${escapeHtml(row.rental)}</div>
+      ${row.times.map(t => `
+        <div style="padding:7px 10px;border-top:1px solid #f0f0f0">
+          <div style="font-size:11px;color:#7c3aed;font-weight:600;margin-bottom:3px">→ ${escapeHtml(t.company)}</div>
+          <div style="display:flex;gap:12px;font-size:12px;color:#374151">
+            <span>🚇 ${fmtTime(t.transit)}</span>
+            <span>🚲 ${fmtTime(t.riding)}</span>
+            <span>🚗 ${fmtTime(t.driving)}</span>
+          </div>
         </div>
-      </div>
-    `).join("")}
-  `;
-  showTip("通勤时间计算完成", 1500);
+      `).join("")}
+    </div>
+  `).join("");
+  showTip("通勤计算完成", 1500);
 };
 
 window.clearCommutePanel = function() {
   commuteCompanies = [];
+  commuteRentals   = [];
   renderCommutePanel();
-  $("commute-results").innerHTML = `<div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">点击房源InfoWindow中的 🏢 通勤 按钮查看通勤时间</div>`;
+  $("commute-results").innerHTML = `<div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">选好公司 + 房源后点击计算</div>`;
 };
 
 </script>
