@@ -654,6 +654,14 @@
       <span class="clear-btn" id="search-clear">×</span>
     </div>
     <div id="search-results"></div>
+    <div id="search-loc-bar" style="display:none;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #f0f0f0;background:#f9fafb">
+      <div style="flex:1;min-width:0">
+        <div id="search-loc-name" style="font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="search-loc-addr" style="font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      </div>
+      <button id="search-loc-btn" class="btn primary" onclick="addRentalAtSearchPin()" style="font-size:12px;padding:6px 10px;white-space:nowrap;flex-shrink:0"></button>
+      <button class="btn" onclick="clearSearchMarker()" style="font-size:12px;padding:6px 10px;flex-shrink:0">取消</button>
+    </div>
   </div>
   <div id="tip" style="opacity:0">点击地图任意位置添加房源</div>
   <button id="drawer-toggle" aria-label="打开侧边栏">☰</button>
@@ -926,6 +934,7 @@ function initMap() {
   });
 
   map.on("click", onMapClick);
+  map.on("click", () => { document.getElementById("search-loc-bar").style.display = "none"; });
 
   // 初始化搜索功能
   initSearch();
@@ -1117,38 +1126,19 @@ function pickTip(tip) {
 function flyToAndPin(loc) {
   clearSearchMarker();
   map.setZoomAndCenter(16, [loc.lng, loc.lat]);
-
-  // 弹气泡
-  const html = `
-    <div class="search-pin-popup">
-      <div class="pp-name">${escapeHtml(loc.name)}</div>
-      <div class="pp-addr">📍 ${escapeHtml(loc.addr || "")}</div>
-      <div class="pp-actions">
-        <button class="btn primary" onclick="addRentalAtSearchPin()">＋ 在此添加${currentMode === "company" ? "公司" : "房源"}</button>
-        <button class="btn" onclick="clearSearchMarker()">取消</button>
-      </div>
-    </div>
-  `;
-  // 用一个独立 InfoWindow 避免和房源 infoWindow 冲突
-  if (!window.searchInfoWindow) {
-    window.searchInfoWindow = new AMap.InfoWindow({
-      offset: new AMap.Pixel(0, -8),
-      closeWhenClickMap: true,
-      isCustom: false
-    });
-  }
-  window.searchInfoWindow.setContent(html);
-  window.searchInfoWindow.open(map, [loc.lng, loc.lat]);
-  // 记下信息供"添加房源"用
   window._searchPinData = loc;
+  // 显示页面内悬浮条（不用 AMap InfoWindow 避免蓝色锚点）
+  const bar = document.getElementById("search-loc-bar");
+  document.getElementById("search-loc-name").textContent = loc.name;
+  document.getElementById("search-loc-addr").textContent = loc.addr || "";
+  document.getElementById("search-loc-btn").textContent =
+    "＋ 在此添加" + (currentMode === "company" ? "公司" : "房源");
+  bar.style.display = "flex";
 }
 
 window.clearSearchMarker = function() {
-  if (searchMarker) {
-    searchMarker.setMap(null);
-    searchMarker = null;
-  }
-  if (window.searchInfoWindow) window.searchInfoWindow.close();
+  if (searchMarker) { searchMarker.setMap(null); searchMarker = null; }
+  document.getElementById("search-loc-bar").style.display = "none";
   window._searchPinData = null;
 };
 
