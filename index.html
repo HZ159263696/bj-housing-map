@@ -2139,4 +2139,29 @@ window.planRoute = function() {
   });
 
   // 自动缩放视野
-  map.setFitView(
+  map.setFitView([ routePolyline, ...routeStops.map(s => new AMap.Marker({ position: [s.lng, s.lat] })) ]);
+  showTip(`已连线 ${routeStops.length} 个地点，点"在高德地图中打开"查看精确路径`, 3000);
+};
+
+// 打开高德地图网页版多点路线
+window.openAMapRoute = function() {
+  if (routeStops.length < 2) { showTip("请至少选择 2 个地点", 2000); return; }
+  const mode = document.getElementById("route-mode").value;
+  const modeMap = { walking: "4", driving: "0", transit: "1" };
+
+  // 高德 URI 格式：from=起点&to=终点&via=途经点1|途经点2
+  const [from, ...rest] = routeStops;
+  const to = rest[rest.length - 1];
+  const vias = rest.slice(0, -1);
+
+  let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${modeMap[mode] || "0"}&src=myapp&coordinate=gaode&callnative=1`;
+  if (vias.length) {
+    url += "&via=" + vias.map(v => `${v.lng},${v.lat}`).join("|");
+  }
+  window.open(url, "_blank");
+};
+
+</script>
+
+</body>
+</html>
