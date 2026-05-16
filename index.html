@@ -13,7 +13,7 @@
     };
   </script>
   <!-- 高德地图 JS API -->
-  <script src="https://webapi.amap.com/maps?v=2.0&key=1af01d7dc6ef58c3d0001575fcc07fc7&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete"></script>
+  <script src="https://webapi.amap.com/maps?v=2.0&key=1af01d7dc6ef58c3d0001575fcc07fc7&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.AutoComplete,AMap.Driving,AMap.Transfer,AMap.Riding"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,6 +89,7 @@
     }
     .mode-tab[data-mode="buy"].active { color: #16a34a; }
     .mode-tab[data-mode="rent"].active { color: #2563eb; }
+    .mode-tab[data-mode="company"].active { color: #7c3aed; }
 
     .filter-row {
       padding: 10px 16px;
@@ -436,6 +437,8 @@
       cursor: pointer;
     }
 
+    .modal-mask.company-mode .rental-only { display: none !important; }
+
     .modal-footer {
       padding: 12px 20px;
       border-top: 1px solid #f0f0f0;
@@ -583,7 +586,7 @@
       .info-card { width: 76vw; max-width: 320px; }
 
       /* 多点路线面板手机端:固定在底部、整宽、圆角顶 */
-      #route-panel {
+      #route-panel, #commute-panel {
         bottom: 0 !important;
         right: 0 !important;
         left: 0 !important;
@@ -593,7 +596,7 @@
         box-shadow: 0 -4px 20px rgba(0,0,0,.18) !important;
       }
       /* 抓手:视觉上提示能下拉关闭 */
-      #route-panel::before {
+      #route-panel::before, #commute-panel::before {
         content: "";
         position: absolute;
         top: 6px;
@@ -619,6 +622,7 @@
   <div class="mode-tabs">
     <div class="mode-tab active" data-mode="rent">🏠 租房</div>
     <div class="mode-tab" data-mode="buy">🏡 买房</div>
+    <div class="mode-tab" data-mode="company">🏢 公司</div>
   </div>
 
   <div class="toolbar">
@@ -667,7 +671,7 @@
         <label>标题 / 小区名 *</label>
         <input type="text" id="f-title" placeholder="例如：望京SOHO附近一居" />
       </div>
-      <div class="row-2">
+      <div class="row-2 rental-only">
         <div class="form-row">
           <label id="f-price-label">月租 (元) *</label>
           <input type="number" id="f-price" placeholder="5000" />
@@ -677,11 +681,11 @@
           <input type="number" id="f-area" placeholder="50" />
         </div>
       </div>
-      <div class="form-row" id="f-unitprice-row" style="display:none">
+      <div class="form-row rental-only" id="f-unitprice-row" style="display:none">
         <label>单价 (元/m²)</label>
         <input type="number" id="f-unitprice" placeholder="如 80000，可留空自动计算" />
       </div>
-      <div class="row-2">
+      <div class="row-2 rental-only">
         <div class="form-row">
           <label>户型</label>
           <select id="f-layout">
@@ -708,11 +712,11 @@
         <label>描述 / 备注</label>
         <textarea id="f-desc" placeholder="精装修、家电齐全、地铁10号线步行5分钟..."></textarea>
       </div>
-      <div class="form-row">
+      <div class="form-row rental-only">
         <label>联系方式</label>
         <input type="text" id="f-contact" placeholder="电话 / 微信 / 中介" />
       </div>
-      <div class="form-row">
+      <div class="form-row rental-only">
         <label>图片 / 视频（云端 R2 存储）</label>
         <div class="img-uploader" id="img-uploader">
           📷 点击上传图片或视频（支持多选）
@@ -721,7 +725,7 @@
         </div>
         <div class="img-preview" id="img-preview"></div>
       </div>
-      <div class="form-row">
+      <div class="form-row rental-only">
         <label>视频外链（可选，直接贴 mp4 / B站 / YouTube 链接）</label>
         <div style="display:flex;gap:6px">
           <input type="text" id="f-video-url" placeholder="https://..." style="flex:1" />
@@ -772,6 +776,24 @@
   </div>
 </div>
 
+<!-- 通勤对比面板 -->
+<div id="commute-panel" style="
+  display:none;position:fixed;bottom:24px;right:320px;
+  width:260px;background:#fff;border-radius:12px;
+  box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+  overflow:hidden;
+">
+  <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-weight:600;font-size:14px">🏢 通勤对比</span>
+    <button onclick="clearCommutePanel()" style="background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:500">清空</button>
+  </div>
+  <div id="commute-companies" style="padding:10px 12px;border-bottom:1px solid #f0f0f0;max-height:130px;overflow-y:auto"></div>
+  <div id="commute-results" style="padding:10px 12px;font-size:13px;color:#374151;max-height:220px;overflow-y:auto">
+    <div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">点击房源InfoWindow中的 🏢 通勤 按钮查看通勤时间</div>
+  </div>
+</div>
+
 <script>
 /* ========================================================
  *  数据层 — Cloudflare Pages Functions (D1) + Cloudinary
@@ -789,9 +811,9 @@ const CLOUDINARY = {
   uploadPreset: "bj-housing",    // ← 改成你的 unsigned upload preset 名
 };
 const API_BASE = "/api";
-let currentMode = localStorage.getItem("bj_mode") || "rent";  // "rent" | "buy"
+let currentMode = localStorage.getItem("bj_mode") || "rent";  // "rent" | "buy" | "company"
 
-const _modeCache = { rent: null, buy: null };
+const _modeCache = { rent: null, buy: null, company: null };
 
 async function loadMode(mode) {
   if (_modeCache[mode]) return _modeCache[mode].slice();
@@ -877,6 +899,7 @@ function uid() {
 }
 
 let rentals = [];   // 当前模式数据，applyMode 时拉取填充
+let commuteCompanies = [];  // [{id, lng, lat, name}] — hoisted, populated later
 
 /* ===== 旧的 IndexedDB / localStorage 代码已删除（替换为云端 API） ===== */
 
@@ -1113,7 +1136,7 @@ function flyToAndPin(loc) {
       <div class="pp-name">${escapeHtml(loc.name)}</div>
       <div class="pp-addr">📍 ${escapeHtml(loc.addr || "")}</div>
       <div class="pp-actions">
-        <button class="btn primary" onclick="addRentalAtSearchPin()">＋ 在此添加房源</button>
+        <button class="btn primary" onclick="addRentalAtSearchPin()">＋ 在此添加${currentMode === "company" ? "公司" : "房源"}</button>
         <button class="btn" onclick="clearSearchMarker()">取消</button>
       </div>
     </div>
@@ -1199,9 +1222,49 @@ function getGroups() {
   return groups;
 }
 
+function buildCompanyMarkerContent(title) {
+  return `<div style="background:#7c3aed;color:#fff;padding:3px 10px 9px;border-radius:10px;font-size:12px;font-weight:600;box-shadow:0 2px 6px rgba(124,58,237,.4);white-space:nowrap;position:relative;cursor:pointer;text-align:center">🏢 ${escapeHtml(title)}<div style="position:absolute;bottom:0;left:50%;transform:translate(-50%,100%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #7c3aed"></div></div>`;
+}
+
+let _companyMarkersOnMap = {};  // company markers shown as overlays in rent/buy mode
+
+function rebuildCompanyOverlays() {
+  Object.values(_companyMarkersOnMap).forEach(m => m.setMap(null));
+  _companyMarkersOnMap = {};
+  const comps = _modeCache["company"];
+  if (!comps || !comps.length) return;
+  comps.forEach(c => {
+    const marker = new AMap.Marker({
+      position: [c.lng, c.lat],
+      content: buildCompanyMarkerContent(c.title),
+      offset: new AMap.Pixel(-55, -42),
+      zIndex: 150
+    });
+    marker.on("click", () => showCompanyInfo(c.id));
+    marker.setMap(map);
+    _companyMarkersOnMap[c.id] = marker;
+  });
+}
+
 function rebuildMarkers() {
   Object.values(markers).forEach(m => m.setMap(null));
   markers = {};
+
+  if (currentMode === "company") {
+    rentals.forEach(c => {
+      const marker = new AMap.Marker({
+        position: [c.lng, c.lat],
+        content: buildCompanyMarkerContent(c.title),
+        offset: new AMap.Pixel(-55, -42),
+        zIndex: 150
+      });
+      marker.on("click", () => showCompanyInfo(c.id));
+      marker.setMap(map);
+      markers[c.id] = marker;
+    });
+    return;
+  }
+
   const isBuy = currentMode === "buy";
   const bg = isBuy ? "#16a34a" : "#ef4444";
   getGroups().forEach((arr, key) => {
@@ -1227,6 +1290,8 @@ function rebuildMarkers() {
     marker.setMap(map);
     markers[key] = marker;
   });
+  // Show company markers as overlays
+  rebuildCompanyOverlays();
 }
 
 let _infoState = null;  // { key, idx } —— InfoWindow 当前同名组分页状态
@@ -1327,16 +1392,60 @@ function showGroupInfo(key, idx, _arr) {
   }, 50);
 }
 
+// Company InfoWindow
+function showCompanyInfo(id) {
+  const comps = currentMode === "company" ? rentals : (_modeCache["company"] || []);
+  const c = comps.find(x => x.id === id);
+  if (!c) return;
+  const inCommute = commuteCompanies.some(x => x.id === id);
+  const html = `
+    <div class="info-card" id="info-card-root">
+      <div class="info-title" style="color:#7c3aed">🏢 ${escapeHtml(c.title)}</div>
+      ${c.addr ? `<div class="info-addr">📍 ${escapeHtml(c.addr)}</div>` : ""}
+      ${c.desc ? `<div class="info-desc">${escapeHtml(c.desc)}</div>` : ""}
+      <div class="info-actions-wrap">
+        <button class="btn info-more-btn" id="info-more-btn"
+          data-id="${c.id}" data-lng="${c.lng}" data-lat="${c.lat}" data-title="${escapeHtml(c.title)}"
+          onclick="window.expandCompanyActions(this)">⋯ 更多操作</button>
+      </div>
+    </div>
+  `;
+  infoWindow.setContent(html);
+  infoWindow.open(map, [c.lng, c.lat]);
+  setTimeout(() => {
+    const moreBtn = document.getElementById("info-more-btn");
+    if (moreBtn) {
+      moreBtn.style.pointerEvents = "none";
+      moreBtn.style.opacity = "0.4";
+      setTimeout(() => { moreBtn.style.pointerEvents = ""; moreBtn.style.opacity = ""; }, 400);
+    }
+  }, 50);
+}
+
+window.expandCompanyActions = function(btn) {
+  const { id, lng, lat, title } = btn.dataset;
+  const wrap = btn.closest(".info-actions-wrap");
+  if (!wrap) return;
+  const inCommute = commuteCompanies.some(c => c.id === id);
+  wrap.innerHTML = `<div class="info-actions" onclick="lockMapClick(500)">
+    ${currentMode === "company" ? `<button class="btn" onclick="lockMapClick(500);editRental('${id}')">✏️ 编辑</button>` : ""}
+    <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${lng},${lat},'${escapeHtml(title)}')">🧭 导航</button>
+    <button class="btn${inCommute ? "" : ""}" onclick="lockMapClick(500);toggleCommuteCompany('${id}',${lng},${lat},'${escapeHtml(title)}')" id="commute-btn-${id}" style="${inCommute ? "background:#7c3aed;color:#fff;border-color:#6d28d9" : "background:#f5f3ff;border-color:#ddd6fe;color:#7c3aed"}">${inCommute ? "✅ 已选对比" : "📊 通勤对比"}</button>
+  </div>`;
+};
+
 // 方案三：点击 ⋯ 展开操作按钮
 window.expandInfoActions = function(btn) {
   const { id, lng, lat, title } = btn.dataset;
   const wrap = btn.closest('.info-actions-wrap');
   if (!wrap) return;
   const isPinned = routeStops.some(s => s.id === id);
+  const hasCommute = commuteCompanies.length > 0;
   wrap.innerHTML = `<div class="info-actions" onclick="lockMapClick(500)">
     <button class="btn" onclick="lockMapClick(500);editRental('${id}')">✏️ 编辑</button>
     <button class="btn btn-nav" onclick="lockMapClick(500);navTo(${lng},${lat},'${escapeHtml(title)}')">🧭 导航</button>
     <button class="btn btn-pin${isPinned ? ' pinned' : ''}" onclick="lockMapClick(500);toggleRoutePin('${id}',${lng},${lat},'${escapeHtml(title)}')" id="pin-btn-${id}">${isPinned ? '✅ 已加入' : '📍 加入路线'}</button>
+    ${hasCommute ? `<button class="btn" onclick="lockMapClick(500);showCommuteFor('${id}')" style="background:#f5f3ff;border-color:#ddd6fe;color:#7c3aed">🏢 通勤</button>` : ""}
   </div>`;
 };
 
@@ -1427,11 +1536,18 @@ window.editRental = function(id) {
   if (r) openModal(r);
 };
 window.delRental = async function(id) {
-  if (!confirm("确认删除这条房源？")) return;
+  const isCompany = currentMode === "company";
+  if (!confirm(isCompany ? "确认删除这家公司？" : "确认删除这条房源？")) return;
   try {
     await apiDelete(id);
   } catch(e) { alert(e.message); return; }
   rentals = rentals.filter(x => x.id !== id);
+  if (isCompany) {
+    // remove from company overlays cache and update commute list
+    invalidateModeCache("company");
+    commuteCompanies = commuteCompanies.filter(c => c.id !== id);
+    renderCommutePanel();
+  }
   rebuildMarkers();
   renderList();
   infoWindow.close();
@@ -1447,12 +1563,17 @@ let editingImages = [];
 let editingVideos = [];   // 数组元素：data:video/...;base64,... 或外链 URL
 
 function openModal(rental, prefill) {
+  const isCompany = currentMode === "company";
   editingImages = [];
   editingVideos = [];
   $("img-preview").innerHTML = "";
   $("f-video-url").value = "";
+
+  // Toggle company-mode CSS (hides .rental-only fields)
+  modal.classList.toggle("company-mode", isCompany);
+
   if (rental) {
-    $("modal-title").textContent = "编辑房源";
+    $("modal-title").textContent = isCompany ? "编辑公司" : "编辑房源";
     $("f-id").value = rental.id;
     $("f-title").value = rental.title || "";
     $("f-price").value = rental.price || "";
@@ -1469,7 +1590,8 @@ function openModal(rental, prefill) {
     editingVideos = (rental.videos || []).slice();
     renderImgPreview();
   } else {
-    $("modal-title").textContent = currentMode === "buy" ? "添加房源（买房）" : "添加房源（租房）";
+    if (isCompany) $("modal-title").textContent = "添加公司";
+    else $("modal-title").textContent = currentMode === "buy" ? "添加房源（买房）" : "添加房源（租房）";
     ["f-id","f-title","f-price","f-area","f-layout","f-orient","f-addr","f-desc","f-contact","f-unitprice"].forEach(k => $(k).value = "");
     if (prefill) {
       $("f-lng").value = prefill.lng;
@@ -1490,17 +1612,21 @@ $("modal-close").onclick = closeModal;
 $("modal-cancel").onclick = closeModal;
 
 $("modal-save").onclick = async () => {
+  const isCompany = currentMode === "company";
   const title = $("f-title").value.trim();
-  const price = parseInt($("f-price").value);
   const lng = parseFloat($("f-lng").value);
   const lat = parseFloat($("f-lat").value);
-  if (!title) { alert("请填写标题"); return; }
-  if (!price || price <= 0) { alert(currentMode === "buy" ? "请填写有效的总价（万元）" : "请填写有效的月租"); return; }
+  if (!title) { alert(isCompany ? "请填写公司名称" : "请填写标题"); return; }
+  if (!isCompany) {
+    const priceVal = parseInt($("f-price").value);
+    if (!priceVal || priceVal <= 0) { alert(currentMode === "buy" ? "请填写有效的总价（万元）" : "请填写有效的月租"); return; }
+  }
   if (isNaN(lng) || isNaN(lat)) { alert("缺少地图坐标，请在地图上点击位置"); return; }
 
   const id = $("f-id").value || uid();
-  const area = parseInt($("f-area").value) || null;
-  let unitPrice = parseInt($("f-unitprice").value) || null;
+  const price = isCompany ? null : (parseInt($("f-price").value) || null);
+  const area = isCompany ? null : (parseInt($("f-area").value) || null);
+  let unitPrice = isCompany ? null : (parseInt($("f-unitprice").value) || null);
   // 买房模式下：若用户没填单价但填了总价+面积，自动算
   if (currentMode === "buy" && !unitPrice && area && price) {
     unitPrice = Math.round(price * 10000 / area);
@@ -1511,13 +1637,13 @@ $("modal-save").onclick = async () => {
     price,
     unitPrice: currentMode === "buy" ? unitPrice : undefined,
     area,
-    layout: $("f-layout").value,
-    orient: $("f-orient").value.trim(),
+    layout: isCompany ? "" : $("f-layout").value,
+    orient: isCompany ? "" : $("f-orient").value.trim(),
     addr: $("f-addr").value.trim(),
     desc: $("f-desc").value.trim(),
-    contact: $("f-contact").value.trim(),
-    images: editingImages,
-    videos: editingVideos,
+    contact: isCompany ? "" : $("f-contact").value.trim(),
+    images: isCompany ? [] : editingImages,
+    videos: isCompany ? [] : editingVideos,
     updatedAt: new Date().toISOString()
   };
 
@@ -1710,7 +1836,30 @@ $("f-video-url").addEventListener("keydown", (e) => {
 /* ========================================================
  *  侧边栏列表
  * ======================================================== */
+function renderCompanyList() {
+  const kw = $("search").value.trim().toLowerCase();
+  const filtered = rentals.filter(c => {
+    if (!kw) return true;
+    return [c.title, c.addr, c.desc].join(" ").toLowerCase().includes(kw);
+  });
+  $("count").textContent = filtered.length;
+  const list = $("list");
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">${rentals.length === 0 ? "还没有公司，点击地图添加第一家 🏢" : "无匹配结果"}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(c => `
+    <div class="card" data-id="${c.id}">
+      <div class="del-x" data-del-id="${c.id}" aria-label="删除公司">×</div>
+      <div class="title">🏢 ${escapeHtml(c.title)}</div>
+      ${c.addr ? `<div class="addr">📍 ${escapeHtml(c.addr)}</div>` : ""}
+      ${c.desc ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.desc)}</div>` : ""}
+    </div>`).join("");
+  list.querySelectorAll(".card").forEach(card => bindCardInteractions(card));
+}
+
 function renderList() {
+  if (currentMode === "company") { renderCompanyList(); return; }
   const kw = $("search").value.trim().toLowerCase();
   const maxPrice = parseInt($("price-max").value) || Infinity;
   const filtered = rentals.filter(r => {
@@ -1877,12 +2026,13 @@ $("price-max").oninput = renderList;
  *  顶部按钮
  * ======================================================== */
 $("btn-add").onclick = () => {
-  showTip("请在地图上点击想要标注的位置", 2500);
+  showTip(currentMode === "company" ? "请在地图上点击公司所在位置" : "请在地图上点击想要标注的位置", 2500);
 };
 
 $("btn-clear").onclick = async () => {
   if (!rentals.length) return;
-  if (!confirm(`确认清空全部 ${rentals.length} 条房源？此操作不可恢复（建议先导出备份）`)) return;
+  const label = currentMode === "company" ? "公司" : "房源";
+  if (!confirm(`确认清空全部 ${rentals.length} 条${label}？此操作不可恢复（建议先导出备份）`)) return;
   showTip(`正在删除 ${rentals.length} 条...`, 60000);
   for (const r of rentals.slice()) {
     try { await apiDelete(r.id); } catch(e) { console.warn("删除失败", r.id, e); }
@@ -1890,6 +2040,11 @@ $("btn-clear").onclick = async () => {
   rentals = [];
   Object.values(markers).forEach(m => m.setMap(null));
   markers = {};
+  if (currentMode === "company") {
+    invalidateModeCache("company");
+    commuteCompanies = commuteCompanies.filter(() => false);
+    renderCommutePanel();
+  }
   renderList();
   showTip("已清空", 1500);
 };
@@ -2033,29 +2188,47 @@ if (location.search.includes("debug=1")) {
  * ======================================================== */
 async function applyMode() {
   const isBuy = currentMode === "buy";
-  $("app-title").textContent = isBuy ? "🏡 北京买房地图" : "🏠 北京租房地图";
-  $("app-sub").textContent = isBuy ? "点击地图任意位置添加待选房源" : "点击地图任意位置添加房源";
-  $("f-price-label").textContent = isBuy ? "总价 (万元) *" : "月租 (元) *";
-  $("f-price").placeholder = isBuy ? "例如 850" : "5000";
-  $("f-unitprice-row").style.display = isBuy ? "" : "none";
-  $("price-max").placeholder = isBuy ? "最高总价(万)" : "最高价";
-  $("count").parentElement.innerHTML = `共 <strong id="count">0</strong> 条${isBuy ? "在售房源" : "房源"}`;
-  $("btn-add").textContent = isBuy ? "＋ 添加待选房源" : "＋ 在地图上添加";
+  const isCompany = currentMode === "company";
+
+  if (isCompany) {
+    $("app-title").textContent = "🏢 公司地点";
+    $("app-sub").textContent = "点击地图添加公司地点，用于通勤对比";
+    $("price-max").style.display = "none";
+    $("count").parentElement.innerHTML = `共 <strong id="count">0</strong> 家公司`;
+    $("btn-add").textContent = "＋ 添加公司";
+  } else {
+    $("app-title").textContent = isBuy ? "🏡 北京买房地图" : "🏠 北京租房地图";
+    $("app-sub").textContent = isBuy ? "点击地图任意位置添加待选房源" : "点击地图任意位置添加房源";
+    $("f-price-label").textContent = isBuy ? "总价 (万元) *" : "月租 (元) *";
+    $("f-price").placeholder = isBuy ? "例如 850" : "5000";
+    $("f-unitprice-row").style.display = isBuy ? "" : "none";
+    $("price-max").style.display = "";
+    $("price-max").placeholder = isBuy ? "最高总价(万)" : "最高价";
+    $("count").parentElement.innerHTML = `共 <strong id="count">0</strong> 条${isBuy ? "在售房源" : "房源"}`;
+    $("btn-add").textContent = isBuy ? "＋ 添加待选房源" : "＋ 在地图上添加";
+  }
 
   document.querySelectorAll(".mode-tab").forEach(el => {
     el.classList.toggle("active", el.dataset.mode === currentMode);
   });
 
-  // 从云端拉取当前模式数据 + 异步预热另一模式（用于跨模式徽标）
+  // 从云端拉取当前模式数据
   showTip("加载中...", 60000);
   try {
     rentals = await loadAll();
-    showTip(`已加载 ${rentals.length} 条房源`, 1200);
+    showTip(`已加载 ${rentals.length} 条${isCompany ? "公司" : "房源"}`, 1200);
   } catch(e) {
     rentals = [];
     showTip("加载失败：" + e.message, 4000);
   }
-  loadMode(isBuy ? "rent" : "buy").then(() => renderList()).catch(() => {});
+
+  if (!isCompany) {
+    // 异步预热另一模式（用于跨模式徽标）
+    loadMode(isBuy ? "rent" : "buy").then(() => renderList()).catch(() => {});
+    // 异步加载公司数据（用于叠加在地图上）
+    loadMode("company").then(() => rebuildCompanyOverlays()).catch(() => {});
+  }
+
   rebuildMarkers();
   renderList();
   if (infoWindow) infoWindow.close();
@@ -2065,6 +2238,7 @@ async function applyMode() {
 document.querySelectorAll(".mode-tab").forEach(el => {
   el.addEventListener("click", () => {
     const m = el.dataset.mode;
+    if (!["rent","buy","company"].includes(m)) return;
     if (m === currentMode) return;
     currentMode = m;
     localStorage.setItem("bj_mode", m);
@@ -2199,6 +2373,111 @@ window.openAMapRoute = function() {
     url += "&via=" + vias.map(v => `${v.lng},${v.lat}`).join("|");
   }
   window.open(url, "_blank");
+};
+
+/* ========================================================
+ *  通勤对比
+ * ======================================================== */
+window.toggleCommuteCompany = function(id, lng, lat, name) {
+  id = String(id); lng = parseFloat(lng); lat = parseFloat(lat);
+  const idx = commuteCompanies.findIndex(c => c.id === id);
+  if (idx >= 0) {
+    commuteCompanies.splice(idx, 1);
+    showTip("已移除公司", 1200);
+  } else {
+    commuteCompanies.push({ id, lng, lat, name });
+    showTip(`已选 ${commuteCompanies.length} 家公司，打开房源InfoWindow点 🏢 通勤 对比`, 2500);
+  }
+  renderCommutePanel();
+};
+
+function renderCommutePanel() {
+  const panel = $("commute-panel");
+  if (!commuteCompanies.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  $("commute-companies").innerHTML = commuteCompanies.map(c => `
+    <div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px">
+      <span style="background:#7c3aed;color:#fff;border-radius:4px;padding:1px 6px;flex-shrink:0;font-size:11px">🏢</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">${escapeHtml(c.name)}</span>
+      <button onclick="toggleCommuteCompany('${c.id}',${c.lng},${c.lat},'${escapeHtml(c.name)}')" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;flex-shrink:0">×</button>
+    </div>
+  `).join("");
+}
+
+function fmtTime(seconds) {
+  if (seconds == null) return "—";
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins}分`;
+  return `${Math.floor(mins/60)}时${mins%60}分`;
+}
+
+function getRouteTime(fromLng, fromLat, toLng, toLat, mode) {
+  return new Promise(resolve => {
+    const origin = new AMap.LngLat(fromLng, fromLat);
+    const dest   = new AMap.LngLat(toLng, toLat);
+    if (mode === "transit") {
+      const tf = new AMap.Transfer({ city: "北京", cityd: "北京" });
+      tf.search(origin, dest, (status, result) => {
+        resolve(status === "complete" && result.plans && result.plans.length ? result.plans[0].time : null);
+      });
+    } else if (mode === "riding") {
+      const rd = new AMap.Riding();
+      rd.search(origin, dest, (status, result) => {
+        resolve(status === "complete" && result.routes && result.routes.length ? result.routes[0].time : null);
+      });
+    } else {
+      const dr = new AMap.Driving();
+      dr.search(origin, dest, (status, result) => {
+        resolve(status === "complete" && result.routes && result.routes.length ? result.routes[0].time : null);
+      });
+    }
+  });
+}
+
+window.showCommuteFor = async function(rentalId) {
+  if (!commuteCompanies.length) { showTip("请先点击公司地点并选择「📊 通勤对比」", 2500); return; }
+  // find rental in current or cached modes
+  const r = rentals.find(x => x.id === rentalId)
+    || (_modeCache["rent"] || []).find(x => x.id === rentalId)
+    || (_modeCache["buy"]  || []).find(x => x.id === rentalId);
+  if (!r) return;
+
+  const panel = $("commute-panel");
+  panel.style.display = "";
+  $("commute-results").innerHTML = `<div style="color:#6b7280;font-size:12px;padding:6px 0;text-align:center">⏳ 计算中...</div>`;
+
+  const rows = [];
+  for (const c of commuteCompanies) {
+    const [transit, riding, driving] = await Promise.all([
+      getRouteTime(r.lng, r.lat, c.lng, c.lat, "transit"),
+      getRouteTime(r.lng, r.lat, c.lng, c.lat, "riding"),
+      getRouteTime(r.lng, r.lat, c.lng, c.lat, "driving"),
+    ]);
+    rows.push({ company: c.name, transit, riding, driving });
+  }
+
+  $("commute-results").innerHTML = `
+    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;background:#f3f4f6;padding:6px 8px;border-radius:6px">
+      📍 ${escapeHtml(r.title)}
+    </div>
+    ${rows.map(row => `
+      <div style="margin-bottom:8px;background:#faf5ff;border:1px solid #ede9fe;border-left:3px solid #7c3aed;border-radius:6px;padding:8px 10px">
+        <div style="font-size:11px;color:#7c3aed;font-weight:600;margin-bottom:5px">→ ${escapeHtml(row.company)}</div>
+        <div style="display:flex;gap:12px;font-size:12px;color:#374151">
+          <span title="公交">🚇 ${fmtTime(row.transit)}</span>
+          <span title="骑行">🚲 ${fmtTime(row.riding)}</span>
+          <span title="驾车">🚗 ${fmtTime(row.driving)}</span>
+        </div>
+      </div>
+    `).join("")}
+  `;
+  showTip("通勤时间计算完成", 1500);
+};
+
+window.clearCommutePanel = function() {
+  commuteCompanies = [];
+  renderCommutePanel();
+  $("commute-results").innerHTML = `<div style="color:#9ca3af;font-size:12px;text-align:center;padding:6px 0">点击房源InfoWindow中的 🏢 通勤 按钮查看通勤时间</div>`;
 };
 
 </script>

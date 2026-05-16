@@ -13,7 +13,8 @@ function rowToRental(r) {
 
 export async function onRequestGet({ env, request }) {
   const url = new URL(request.url);
-  const mode = url.searchParams.get("mode") === "buy" ? "buy" : "rent";
+  const modeParam = url.searchParams.get("mode");
+  const mode = ["buy", "company"].includes(modeParam) ? modeParam : "rent";
   const { results } = await env.DB.prepare(
     "SELECT * FROM rentals WHERE mode = ? ORDER BY createdAt ASC"
   ).bind(mode).all();
@@ -24,7 +25,7 @@ export async function onRequestPost({ env, request }) {
   const body = await request.json();
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  const mode = body.mode === "buy" ? "buy" : "rent";
+  const mode = ["buy", "company"].includes(body.mode) ? body.mode : "rent";
 
   await env.DB.prepare(`
     INSERT INTO rentals
