@@ -1116,18 +1116,6 @@ function pickTip(tip) {
 
 function flyToAndPin(loc) {
   clearSearchMarker();
-  // 蓝色搜索图标，跟房源红标记区分
-  searchMarker = new AMap.Marker({
-    position: [loc.lng, loc.lat],
-    icon: new AMap.Icon({
-      size: new AMap.Size(28, 38),
-      image: "https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png",
-      imageSize: new AMap.Size(28, 38)
-    }),
-    offset: new AMap.Pixel(-14, -38),
-    zIndex: 200
-  });
-  searchMarker.setMap(map);
   map.setZoomAndCenter(16, [loc.lng, loc.lat]);
 
   // 弹气泡
@@ -1144,7 +1132,7 @@ function flyToAndPin(loc) {
   // 用一个独立 InfoWindow 避免和房源 infoWindow 冲突
   if (!window.searchInfoWindow) {
     window.searchInfoWindow = new AMap.InfoWindow({
-      offset: new AMap.Pixel(0, -38),
+      offset: new AMap.Pixel(0, -8),
       closeWhenClickMap: true,
       isCustom: false
     });
@@ -1290,8 +1278,6 @@ function rebuildMarkers() {
     marker.setMap(map);
     markers[key] = marker;
   });
-  // Show company markers as overlays
-  rebuildCompanyOverlays();
 }
 
 let _infoState = null;  // { key, idx } —— InfoWindow 当前同名组分页状态
@@ -2225,8 +2211,6 @@ async function applyMode() {
   if (!isCompany) {
     // 异步预热另一模式（用于跨模式徽标）
     loadMode(isBuy ? "rent" : "buy").then(() => renderList()).catch(() => {});
-    // 异步加载公司数据（用于叠加在地图上）
-    loadMode("company").then(() => rebuildCompanyOverlays()).catch(() => {});
   }
 
   rebuildMarkers();
